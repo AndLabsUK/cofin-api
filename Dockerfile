@@ -6,4 +6,4 @@ COPY ./cofin-api .
 
 EXPOSE 8080
 
-CMD [ "./cofin-api" ]
+CMD ["/app/cofin-api" ]
