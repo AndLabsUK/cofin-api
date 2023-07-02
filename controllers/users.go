@@ -3,8 +3,9 @@ package controllers
 import (
 	"cofin/core"
 	"cofin/models"
-	"github.com/gin-gonic/gin"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 type UsersController struct{}
