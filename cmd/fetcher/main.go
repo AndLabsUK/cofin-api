@@ -2,147 +2,121 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/jaytaylor/html2text"
 	"github.com/joho/godotenv"
-	loader "github.com/tmc/langchaingo/documentloaders"
+	"github.com/tmc/langchaingo/documentloaders"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/vectorstores/pinecone"
 )
 
-// TODO: make this a loop with jobs
-// TODO: pull companies that need to be fetched from a database
-// TODO: create proper interfaces for embeddings & interaction with Pinecone
-// TODO: annotate documents in Pinecone with metadata
-
 func main() {
+	// Load environment variables.
 	err := godotenv.Load()
 	if err != nil {
-		log.Panic(err)
+		panic(err)
 	}
 
-	client := &http.Client{}
-	for {
-		cik := "CIK0001477333"
+	// Initialize the embedder.
+	embedder, err := embeddings.NewOpenAI()
+	embedder.BatchSize = 30
 
-		// Get SEC submissions for a company.
-		req, err := http.NewRequest("GET", fmt.Sprintf("https://data.sec.gov/submissions/%v.json", cik), nil)
-		if err != nil {
-			log.Fatal(err)
-		}
+	// Initialize vector document store.
+	store, err := pinecone.New(
+		context.Background(),
+		pinecone.WithProjectName(os.Getenv("PINECONE_PROJECT")),
+		pinecone.WithIndexName(os.Getenv("PINECONE_INDEX")),
+		pinecone.WithEnvironment(os.Getenv("PINECONE_ENVIRONMENT")),
+		pinecone.WithEmbedder(embedder),
+		pinecone.WithAPIKey(os.Getenv("PINECONE_API_KEY")),
+		pinecone.WithNameSpace("$NET"),
+	)
+	if err != nil {
+		panic(err)
+	}
 
-		req.Header.Set("User-Agent", "andlabs.co.uk")
-		resp, err := client.Do(req)
-		if err != nil {
-			log.Fatal(err)
-		}
+	// Initialize text splitter.
+	splitter, err := NewSplitter(1000, 100)
+	if err != nil {
+		panic(err)
+	}
 
-		b, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		var submissions map[string]interface{}
-		err = json.Unmarshal(b, &submissions)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		recentFilings := submissions["filings"].(map[string]interface{})["recent"].(map[string]interface{})
-		reportDates := recentFilings["reportDate"].([]interface{})
-		accessionNumbers := recentFilings["accessionNumber"].([]interface{})
-		forms := recentFilings["form"].([]interface{})
-		primaryDocuments := recentFilings["primaryDocument"].([]interface{})
-
-		// Get indexes of 10-Qs.
-		indexes := make([]int, 0)
-		for i, form := range forms {
-			if strings.ToUpper(form.(string)) == "10-Q" {
-				indexes = append(indexes, i)
-			}
-		}
-
-		// Log 10-Qs.
-		for _, i := range indexes {
-			log.Printf("Filed %v on %v, accession number %v, primary document %v", forms[i], reportDates[i], accessionNumbers[i], primaryDocuments[i])
-		}
-
-		// Get the raw file for the last 10-Q.
-		lastIndex := indexes[len(indexes)-1]
-		// For whatever reason, in this URL SEC expects us to remove 0s from the
-		// CIK prefix and remove dashes from the accession number.
-		cik = strings.ReplaceAll(strings.ReplaceAll(cik, "CIK", ""), "0", "")
-		accessionNumber := strings.ReplaceAll(accessionNumbers[lastIndex].(string), "-", "")
-		req, err = http.NewRequest("GET", fmt.Sprintf("https://www.sec.gov/Archives/edgar/data/%v/%v/%v", cik, accessionNumber, primaryDocuments[lastIndex]), nil)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		req.Header.Set("User-Agent", "andlabs.co.uk")
-		resp, err = client.Do(req)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		b, err = ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		html, err := html2text.FromString(string(b))
-		if err != nil {
-			panic(err)
-		}
-
-		// Split the document into overlapping chunks and upload them to
-		// Pinecone.
-		text := loader.NewText(strings.NewReader(html))
-		splitter, err := NewSplitter(1000, 100)
-		if err != nil {
-			panic(err)
-		}
-
-		docs, err := text.LoadAndSplit(context.Background(), splitter)
-		if err != nil {
-			panic(err)
-		}
-
-		embedder, err := embeddings.NewOpenAI()
-		embedder.BatchSize = 30
-		store, err := pinecone.New(
-			context.Background(),
-			pinecone.WithProjectName(os.Getenv("PINECONE_PROJECT")),
-			pinecone.WithIndexName(os.Getenv("PINECONE_INDEX")),
-			pinecone.WithEnvironment(os.Getenv("PINECONE_ENVIRONMENT")),
-			pinecone.WithEmbedder(embedder),
-			pinecone.WithAPIKey(os.Getenv("PINECONE_API_KEY")),
-			pinecone.WithNameSpace("$NET"),
-		)
-
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		// Go in batches of 50 when pushing to Pinecone.
-		for i := 0; i <= len(docs); i += 50 {
-			end := i + 50
-			if end > len(docs) {
-				end = len(docs)
-			}
-
-			err = store.AddDocuments(context.Background(), docs[i:end])
+	// We could run this once a month and that'd be enough.
+	t := time.NewTicker(1 * time.Hour)
+	for ; true; <-t.C {
+		for _, exchange := range stockExchanges {
+			listings, err := getTradedCompanies(exchange)
 			if err != nil {
-				log.Fatal(err)
+				// TODO: Retry here and everywhere else.
+				log.Printf("Failed to fetch listings for %v: %v\n", exchange, err)
+				continue
+			}
+
+			for _, listing := range listings {
+				if listing.IsDelisted {
+					continue
+				}
+
+				fmt.Printf("Fetching %v (%v)...\n", listing.Name, listing.Ticker)
+				// TODO: Support more document types.
+				filings, err := getFilings(listing.CIK, "10-Q")
+				if err != nil {
+					log.Printf("Failed to fetch filings for %v (%v): %v\n", listing.Name, listing.Ticker, err)
+					continue
+				}
+
+				for _, filing := range filings {
+					f, err := getFilingFile(filing)
+					if err != nil {
+						log.Printf("Failed to fetch filing file for %v (%v): %v\n", listing.Name, listing.Ticker, err)
+						continue
+					}
+
+					html, err := html2text.FromString(string(f))
+					if err != nil {
+						log.Printf("Failed to parse filing file for %v (%v): %v\n", listing.Name, listing.Ticker, err)
+						continue
+					}
+
+					text := documentloaders.NewText(strings.NewReader(html))
+					docs, err := text.LoadAndSplit(context.Background(), splitter)
+					if err != nil {
+						log.Printf("Failed to split document for %v (%v): %v\n", listing.Name, listing.Ticker, err)
+						continue
+					}
+
+					// Set document metadata. This will match what is set in the
+					// DB and will be used for filtering.
+					for _, doc := range docs {
+						doc.Metadata = map[string]interface{}{
+							"ID":               "123",
+							"accession_number": filing.AccessionNo,
+							"ticker":           listing.Ticker,
+							"name":             listing.Name,
+							"date":             filing.FiledAt,
+							"type":             "10-Q",
+						}
+					}
+
+					// Go in batches of 50 when pushing to Pinecone.
+					for i := 0; i <= len(docs); i += 50 {
+						end := i + 50
+						if end > len(docs) {
+							end = len(docs)
+						}
+
+						err = store.AddDocuments(context.Background(), docs[i:end])
+						if err != nil {
+							log.Fatal(err)
+						}
+					}
+				}
 			}
 		}
-
-		return
 	}
 }
