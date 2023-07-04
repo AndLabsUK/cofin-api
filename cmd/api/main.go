@@ -20,7 +20,7 @@ func main() {
 	}
 
 	// auto migrate the database
-	err = db.Debug().AutoMigrate(&models.User{})
+	err = db.Debug().AutoMigrate(&models.User{}, &models.Company{}, &models.Document{})
 	if err != nil {
 		panic(err)
 	}

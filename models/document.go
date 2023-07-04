@@ -1,9 +1,22 @@
 package models
 
-// import "gorm.io/gorm"
+import (
+	"cofin/internal"
+	"time"
 
-// type Document struct {
-// 	gorm.Model
-// 	// The ticker symbol of the company that filed the document.
-// 	Ticker string `gorm:"unique"`
-// }
+	"gorm.io/gorm"
+)
+
+// Documents are raw document inputs. We don't usually use them for search or
+// retrieval. They are stored primarily for debugging and supportability
+// reasons. In search, we use different representations of these documents, such
+// as their chunks.
+type Document struct {
+	gorm.Model
+	CompanyID  uint
+	Company    Company
+	FiledAt    time.Time           `gorm:"index;not null"`
+	Kind       internal.SourceKind `gorm:"index;not null"`
+	OriginURL  string
+	RawContent string
+}

@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"path"
 	"strings"
+	"time"
 )
 
 // London Stock Exchange WHEN?!
@@ -17,7 +19,7 @@ var stockExchanges = []string{"nyse", "nasdaq"}
 
 // This is the response from the SEC API when we request a list of companies
 // traded on an exchange.
-type SecAPIListing struct {
+type SECListing struct {
 	Name         string `json:"name,omitempty"`
 	Ticker       string `json:"ticker,omitempty"`
 	CIK          string `json:"cik,omitempty"`
@@ -89,7 +91,8 @@ type Filing struct {
 	PeriodOfReport                       string               `json:"periodOfReport,omitempty"`
 }
 
-func getTradedCompanies(exchange string) (listings []SecAPIListing, err error) {
+// TODO: implement retries in all of these calls.
+func getTradedCompanies(exchange string) (listings []SECListing, err error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("https://api.sec-api.io/mapping/exchange/%v", "nyse"), nil)
 	if err != nil {
 		return nil, err
@@ -114,23 +117,25 @@ func getTradedCompanies(exchange string) (listings []SecAPIListing, err error) {
 	return listings, nil
 }
 
-func getFilings(cik string, kind internal.SourceType) (filings []Filing, err error) {
-	// TODO: set from and to based on the most recent available company data in
-	// our DB.
+// TODO: Paginate.
+func getFilingsSince(cik string, kind internal.SourceKind, since time.Time) (filings []Filing, err error) {
+	timeStart := since.Format(time.RFC3339)
+	log.Println(timeStart)
+	timeEnd := time.Now().Format(time.RFC3339)
 
 	// TODO: paginate
 	var jsonStr = []byte(
 		fmt.Sprintf(`{
 			"query": {
 				"query_string": {
-					"query": "formType:\"%v\" AND filedAt:[2023-01-01T14:00:00.000 TO 2023-03-15T19:00:00.000] AND cik:(%v)",
+					"query": "formType:\"%v\" AND filedAt:[%v TO %v] AND cik:(%v)",
 					"time_zone": "America/New_York"
 				}
 			},
 			"from": "0",
 			"size": "20",
-			"sort": [{ "filedAt": { "order": "desc" } }]
-		}`, kind, cik),
+			"sort": [{ "filedAt": { "order": "asc" } }]
+		}`, kind, timeStart, timeEnd, cik),
 	)
 
 	req, err := http.NewRequest("POST", "https://api.sec-api.io", bytes.NewBuffer(jsonStr))
@@ -175,20 +180,27 @@ func getFilings(cik string, kind internal.SourceType) (filings []Filing, err err
 	return r.Filings, nil
 }
 
-func getFilingFile(filing Filing) (file []byte, err error) {
+func getFilingFile(filing Filing) (originURL string, file []byte, err error) {
 	_, fileName := path.Split(filing.LinkToFilingDetails)
 	accessionNumber := strings.ReplaceAll(filing.AccessionNo, "-", "")
+	originURL = fmt.Sprintf("https://www.sec.gov/Archives/edgar/data/%v/%v/%v", filing.CIK, accessionNumber, fileName)
+
 	p := fmt.Sprintf("https://archive.sec-api.io/%v/%v/%v", filing.CIK, accessionNumber, fileName)
 	req, err := http.NewRequest("GET", p, nil)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	req.Header.Set("Authorization", os.Getenv("SEC_API_KEY"))
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
-	return ioutil.ReadAll(resp.Body)
+	f, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", nil, err
+	}
+
+	return originURL, f, nil
 }

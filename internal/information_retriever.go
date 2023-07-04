@@ -46,7 +46,7 @@ func NewInformationRetriever() (*InformationRetriever, error) {
 	}, nil
 }
 
-func (ir *InformationRetriever) Get(ctx context.Context, ticker string, year int, quarter Quarter, sourceType SourceType, text string) ([]string, error) {
+func (ir *InformationRetriever) Get(ctx context.Context, ticker string, year int, quarter Quarter, sourceKind SourceKind, text string) ([]string, error) {
 	if ticker != "$NET" {
 		return nil, errors.New("TODO: remove this check. Please use $NET as the ticker.")
 	}
@@ -59,7 +59,7 @@ func (ir *InformationRetriever) Get(ctx context.Context, ticker string, year int
 		return nil, errors.New("TODO: remove this check. Please use 1 as the quarter.")
 	}
 
-	if sourceType != "10-Q" {
+	if sourceKind != "10-Q" {
 		return nil, errors.New("TODO: remove this check. Please use 10-Q as the source type.")
 	}
 
