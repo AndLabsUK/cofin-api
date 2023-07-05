@@ -23,7 +23,7 @@ type UserMessage struct {
 	Quarter internal.Quarter `json:"quarter"`
 	// Document type the user is interested in. By default, 10-K is chosen, if
 	// available. Otherwise, 10-Q is chosen.
-	SourceType internal.SourceType `json:"source_type"`
+	SourceKind internal.SourceKind `json:"source_type"`
 }
 
 // AIMessage describes AI response to the user.
@@ -62,7 +62,7 @@ func (convo ConversationController) Respond(c *gin.Context) {
 		return
 	}
 
-	docs, err := convo.InformationRetriever.Get(c.Request.Context(), input.UserMessage.Ticker, input.UserMessage.Year, input.UserMessage.Quarter, input.UserMessage.SourceType, input.UserMessage.Text)
+	docs, err := convo.InformationRetriever.Get(c.Request.Context(), input.UserMessage.Ticker, input.UserMessage.Year, input.UserMessage.Quarter, input.UserMessage.SourceKind, input.UserMessage.Text)
 	if err != nil {
 		log.Println(err)
 		c.JSON(500, gin.H{"error": err.Error()})
