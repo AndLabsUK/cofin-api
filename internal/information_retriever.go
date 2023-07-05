@@ -1,13 +1,12 @@
 package internal
 
 import (
+	"cofin/models"
 	"context"
 	"errors"
-	"os"
 
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/vectorstores"
-	"github.com/tmc/langchaingo/vectorstores/pinecone"
 )
 
 // InformationRetriever can retrieve information based on keywords and
@@ -19,22 +18,12 @@ type InformationRetriever struct {
 }
 
 func NewInformationRetriever() (*InformationRetriever, error) {
-	embedder, err := embeddings.NewOpenAI()
+	embedder, err := NewEmbedder()
 	if err != nil {
 		return nil, err
 	}
-	embedder.BatchSize = 30
 
-	store, err := pinecone.New(
-		context.Background(),
-		pinecone.WithProjectName(os.Getenv("PINECONE_PROJECT")),
-		pinecone.WithIndexName(os.Getenv("PINECONE_INDEX")),
-		pinecone.WithEnvironment(os.Getenv("PINECONE_ENVIRONMENT")),
-		pinecone.WithEmbedder(embedder),
-		pinecone.WithAPIKey(os.Getenv("PINECONE_API_KEY")),
-		pinecone.WithNameSpace("$NET"),
-	)
-
+	store, err := NewPinecone(context.Background(), embedder)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +35,7 @@ func NewInformationRetriever() (*InformationRetriever, error) {
 	}, nil
 }
 
-func (ir *InformationRetriever) Get(ctx context.Context, ticker string, year int, quarter Quarter, sourceKind SourceKind, text string) ([]string, error) {
+func (ir *InformationRetriever) Get(ctx context.Context, ticker string, year int, quarter models.Quarter, sourceKind models.SourceKind, text string) ([]string, error) {
 	if ticker != "$NET" {
 		return nil, errors.New("TODO: remove this check. Please use $NET as the ticker.")
 	}

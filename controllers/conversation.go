@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"cofin/internal"
+	"cofin/models"
 	"log"
 
 	"github.com/gin-gonic/gin"
@@ -20,10 +21,10 @@ type UserMessage struct {
 	Year int `json:"year" binding:"required"`
 	// Financial report quarter the user is interested in. By default, the most
 	// recent quarter is chosen.
-	Quarter internal.Quarter `json:"quarter"`
+	Quarter models.Quarter `json:"quarter"`
 	// Document type the user is interested in. By default, 10-K is chosen, if
 	// available. Otherwise, 10-Q is chosen.
-	SourceKind internal.SourceKind `json:"source_type"`
+	SourceKind models.SourceKind `json:"source_type"`
 }
 
 // AIMessage describes AI response to the user.

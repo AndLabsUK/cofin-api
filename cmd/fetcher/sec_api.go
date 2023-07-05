@@ -2,19 +2,20 @@ package main
 
 import (
 	"bytes"
-	"cofin/internal"
+	"cofin/models"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"path"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/go-retryablehttp"
 )
 
-// London Stock Exchange WHEN?!
+// The list of exchanges we fetch companies from. London Stock Exchange WHEN?!
 var stockExchanges = []string{"nyse", "nasdaq"}
 
 // This is the response from the SEC API when we request a list of companies
@@ -37,35 +38,6 @@ type SECListing struct {
 	Currency     string `json:"currency,omitempty"`
 	Location     string `json:"location,omitempty"`
 	ID           string `json:"id,omitempty"`
-}
-
-type DocumentFormatFile struct {
-	Sequence    string `json:"sequence,omitempty"`
-	Description string `json:"description,omitempty"`
-	DocumentURL string `json:"documentUrl,omitempty"`
-	Type        string `json:"type,omitempty"`
-	Size        string `json:"size,omitempty"`
-}
-
-type DataFile struct {
-	Sequence    string `json:"sequence,omitempty"`
-	Description string `json:"description,omitempty"`
-	DocumentURL string `json:"documentUrl,omitempty"`
-	Type        string `json:"type,omitempty"`
-	Size        string `json:"size,omitempty"`
-}
-
-type Entity struct {
-	CompanyName          string `json:"companyName,omitempty"`
-	CIK                  string `json:"cik,omitempty"`
-	IRSNo                string `json:"irsNo,omitempty"`
-	StateOfIncorporation string `json:"stateOfIncorporation,omitempty"`
-	FiscalYearEnd        string `json:"fiscalYearEnd,omitempty"`
-	Type                 string `json:"type,omitempty"`
-	Act                  string `json:"act,omitempty"`
-	FileNo               string `json:"fileNo,omitempty"`
-	FilmNo               string `json:"filmNo,omitempty"`
-	Sic                  string `json:"sic,omitempty"`
 }
 
 // This is the response from the SEC API when we request a list of filings for a
@@ -91,15 +63,49 @@ type Filing struct {
 	PeriodOfReport                       string               `json:"periodOfReport,omitempty"`
 }
 
-// TODO: implement retries in all of these calls.
+// This object is embedded in the Filing object.
+type DocumentFormatFile struct {
+	Sequence    string `json:"sequence,omitempty"`
+	Description string `json:"description,omitempty"`
+	DocumentURL string `json:"documentUrl,omitempty"`
+	Type        string `json:"type,omitempty"`
+	Size        string `json:"size,omitempty"`
+}
+
+// This object is embedded in the Filing object.
+type DataFile struct {
+	Sequence    string `json:"sequence,omitempty"`
+	Description string `json:"description,omitempty"`
+	DocumentURL string `json:"documentUrl,omitempty"`
+	Type        string `json:"type,omitempty"`
+	Size        string `json:"size,omitempty"`
+}
+
+// This object is embedded in the Filing object.
+type Entity struct {
+	CompanyName          string `json:"companyName,omitempty"`
+	CIK                  string `json:"cik,omitempty"`
+	IRSNo                string `json:"irsNo,omitempty"`
+	StateOfIncorporation string `json:"stateOfIncorporation,omitempty"`
+	FiscalYearEnd        string `json:"fiscalYearEnd,omitempty"`
+	Type                 string `json:"type,omitempty"`
+	Act                  string `json:"act,omitempty"`
+	FileNo               string `json:"fileNo,omitempty"`
+	FilmNo               string `json:"filmNo,omitempty"`
+	Sic                  string `json:"sic,omitempty"`
+}
+
+// Get companies traded on an exchange.
 func getTradedCompanies(exchange string) (listings []SECListing, err error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("https://api.sec-api.io/mapping/exchange/%v", "nyse"), nil)
 	if err != nil {
 		return nil, err
 	}
-
 	req.Header.Set("Authorization", os.Getenv("SEC_API_KEY"))
-	resp, err := http.DefaultClient.Do(req)
+
+	client := retryablehttp.NewClient()
+	client.Logger = nil
+	resp, err := client.StandardClient().Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -117,10 +123,37 @@ func getTradedCompanies(exchange string) (listings []SECListing, err error) {
 	return listings, nil
 }
 
+// Get the filing file from the SEC.
+func getFilingFile(filing Filing) (originURL string, file []byte, err error) {
+	_, fileName := path.Split(filing.LinkToFilingDetails)
+	accessionNumber := strings.ReplaceAll(filing.AccessionNo, "-", "")
+	originURL = fmt.Sprintf("https://www.sec.gov/Archives/edgar/data/%v/%v/%v", filing.CIK, accessionNumber, fileName)
+
+	p := fmt.Sprintf("https://archive.sec-api.io/%v/%v/%v", filing.CIK, accessionNumber, fileName)
+	req, err := http.NewRequest("GET", p, nil)
+	if err != nil {
+		return "", nil, err
+	}
+	req.Header.Set("Authorization", os.Getenv("SEC_API_KEY"))
+
+	client := retryablehttp.NewClient()
+	client.Logger = nil
+	resp, err := client.StandardClient().Do(req)
+	if err != nil {
+		return "", nil, err
+	}
+
+	f, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", nil, err
+	}
+
+	return originURL, f, nil
+}
+
 // TODO: Paginate.
-func getFilingsSince(cik string, kind internal.SourceKind, since time.Time) (filings []Filing, err error) {
+func getFilingsSince(cik string, kind models.SourceKind, since time.Time) (filings []Filing, err error) {
 	timeStart := since.Format(time.RFC3339)
-	log.Println(timeStart)
 	timeEnd := time.Now().Format(time.RFC3339)
 
 	// TODO: paginate
@@ -142,10 +175,12 @@ func getFilingsSince(cik string, kind internal.SourceKind, since time.Time) (fil
 	if err != nil {
 		return nil, err
 	}
-
 	req.Header.Set("Authorization", os.Getenv("SEC_API_KEY"))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+
+	client := retryablehttp.NewClient()
+	client.Logger = nil
+	resp, err := client.StandardClient().Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -178,29 +213,4 @@ func getFilingsSince(cik string, kind internal.SourceKind, since time.Time) (fil
 	}
 
 	return r.Filings, nil
-}
-
-func getFilingFile(filing Filing) (originURL string, file []byte, err error) {
-	_, fileName := path.Split(filing.LinkToFilingDetails)
-	accessionNumber := strings.ReplaceAll(filing.AccessionNo, "-", "")
-	originURL = fmt.Sprintf("https://www.sec.gov/Archives/edgar/data/%v/%v/%v", filing.CIK, accessionNumber, fileName)
-
-	p := fmt.Sprintf("https://archive.sec-api.io/%v/%v/%v", filing.CIK, accessionNumber, fileName)
-	req, err := http.NewRequest("GET", p, nil)
-	if err != nil {
-		return "", nil, err
-	}
-
-	req.Header.Set("Authorization", os.Getenv("SEC_API_KEY"))
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", nil, err
-	}
-
-	f, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", nil, err
-	}
-
-	return originURL, f, nil
 }
