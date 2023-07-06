@@ -2,11 +2,13 @@ package main
 
 import "fmt"
 
+// Splitter splits text into chunks.
 type Splitter struct {
 	chunkLength  int
 	chunkOverlap int
 }
 
+// NewSplitter returns a new Splitter.
 func NewSplitter(chunkLength, chunkOverlap int) (*Splitter, error) {
 	if chunkLength < chunkOverlap {
 		return &Splitter{}, fmt.Errorf("chunkLength must be greater than chunkOverlap")
@@ -22,6 +24,7 @@ func NewSplitter(chunkLength, chunkOverlap int) (*Splitter, error) {
 	}, nil
 }
 
+// SplitText splits text into chunks.
 func (s *Splitter) SplitText(t string) ([]string, error) {
 	chunks := make([]string, 0)
 

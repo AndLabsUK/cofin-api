@@ -5,80 +5,19 @@ import (
 	"cofin/internal"
 	"cofin/models"
 	"context"
-	"errors"
-	"log"
-	"os"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/jaytaylor/html2text"
 	"github.com/joho/godotenv"
 	"github.com/tmc/langchaingo/documentloaders"
-	"github.com/tmc/langchaingo/embeddings"
-	"github.com/tmc/langchaingo/vectorstores/pinecone"
+	"github.com/tmc/langchaingo/vectorstores"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-var SECFilingKinds = []internal.SourceKind{internal.K10, internal.Q10}
-
-func GetOrCreateCompanyFromSECListing(db *gorm.DB, listing SECListing) (*models.Company, error) {
-	ticker := strings.ToUpper(listing.Ticker)
-
-	var company models.Company
-	err := db.Transaction(func(tx *gorm.DB) error {
-		if err := db.Where("ticker = ?", ticker).First(&company).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				company = models.Company{
-					Name:   listing.Name,
-					Ticker: ticker,
-					CIK:    listing.CIK,
-				}
-
-				if err := db.Create(&company).Error; err != nil {
-					return err
-				}
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &company, nil
-}
-
-func GetMostRecentDocumentOfType(db *gorm.DB, company *models.Company, kind internal.SourceKind) (*models.Document, error) {
-	var document models.Document
-	err := db.Where("company_id = ? AND kind = ?", company.ID, kind).Order("filed_at DESC").First(&document).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-
-		return nil, err
-	}
-
-	return &document, nil
-}
-
-func CreateDocument(db *gorm.DB, company *models.Company, filedAt time.Time, kind internal.SourceKind, originURL, rawContent string) (*models.Document, error) {
-	document := models.Document{
-		CompanyID:  company.ID,
-		FiledAt:    filedAt,
-		Kind:       kind,
-		OriginURL:  originURL,
-		RawContent: rawContent,
-	}
-
-	if err := db.Create(&document).Error; err != nil {
-		return nil, err
-	}
-
-	return &document, nil
-}
+const MAX_FILINGS_PER_COMPANY_PER_BATCH = 20
 
 func main() {
 	// Load environment variables.
@@ -94,19 +33,13 @@ func main() {
 	}
 
 	// Initialize the embedder.
-	embedder, err := embeddings.NewOpenAI()
-	embedder.BatchSize = 30
+	embedder, err := internal.NewEmbedder()
+	if err != nil {
+		panic(err)
+	}
 
-	// Initialize vector document store.
-	store, err := pinecone.New(
-		context.Background(),
-		pinecone.WithProjectName(os.Getenv("PINECONE_PROJECT")),
-		pinecone.WithIndexName(os.Getenv("PINECONE_INDEX")),
-		pinecone.WithEnvironment(os.Getenv("PINECONE_ENVIRONMENT")),
-		pinecone.WithEmbedder(embedder),
-		pinecone.WithAPIKey(os.Getenv("PINECONE_API_KEY")),
-		pinecone.WithNameSpace("$NET"),
-	)
+	// Initialize the vector store.
+	store, err := internal.NewPinecone(context.Background(), embedder)
 	if err != nil {
 		panic(err)
 	}
@@ -117,110 +50,190 @@ func main() {
 		panic(err)
 	}
 
+	logger, err := internal.NewLogger()
+	if err != nil {
+		panic(err)
+	}
+
 	// We could run this once a month and that'd be enough.
 	t := time.NewTicker(1 * time.Hour)
 	for ; true; <-t.C {
+		// Go over all stock exchanges.
 		for _, exchange := range stockExchanges {
+			// Get listings for the exchange.
 			listings, err := getTradedCompanies(exchange)
 			if err != nil {
-				log.Printf("Failed to fetch listings for %v: %v\n", exchange, err)
+				logger.Errorw(fmt.Errorf("failed to get companies traded on an exchange: %v", err.Error()).Error(), "exchange", exchange)
 				continue
 			}
 
 			for _, listing := range listings {
+				// Skip delisted companies.
 				if listing.IsDelisted {
 					continue
 				}
 
-				company, err := GetOrCreateCompanyFromSECListing(db, listing)
+				// Create the company if it doesn't exist, fetch documents, and
+				// store them.
+				err := processListing(db, logger, listing, splitter, store)
 				if err != nil {
-					log.Printf("Could not create company for %v (%v): %v\n", listing.Name, listing.Ticker, err)
+					logger.Errorw(fmt.Errorf("failed to process a listing: %v", err.Error()).Error(), "ticker", listing.Ticker)
 					continue
-				}
-
-				for _, filingKind := range SECFilingKinds {
-					document, err := GetMostRecentDocumentOfType(db, company, filingKind)
-					if err != nil {
-						log.Printf("Failed to fetch most recent document for %v (%v): %v\n", listing.Name, listing.Ticker, err)
-						continue
-					}
-
-					// Query for the last year of documents if we have no
-					// documents for the company. Otherwise query for documents
-					// since the last document.
-					var lastFiledAt = time.Now().Add(-365 * 24 * time.Hour)
-					if document != nil {
-						lastFiledAt = document.FiledAt
-					}
-
-					// TODO: debug -- looks like some companies return no
-					// documents. Why?
-					filings, err := getFilingsSince(listing.CIK, filingKind, lastFiledAt)
-					if err != nil {
-						log.Printf("Failed to fetch filings for %v (%v): %v\n", listing.Name, listing.Ticker, err)
-						continue
-					}
-
-					for _, filing := range filings {
-						originURL, f, err := getFilingFile(filing)
-						if err != nil {
-							log.Printf("Failed to fetch filing file for %v (%v): %v\n", listing.Name, listing.Ticker, err)
-							continue
-						}
-
-						// TODO: do some basic cleanup on the HTML. (Too much
-						// whitespace, etc.)
-						html, err := html2text.FromString(string(f))
-						if err != nil {
-							log.Printf("Failed to parse filing file for %v (%v): %v\n", listing.Name, listing.Ticker, err)
-							continue
-						}
-
-						// TODO: fix URL.
-						filingAt, err := time.Parse(time.RFC3339, filing.FiledAt)
-						if err != nil {
-							log.Printf("Failed to parse filing time for %v (%v): %v\n", listing.Name, listing.Ticker, err)
-							continue
-						}
-
-						_, err = CreateDocument(db, company, filingAt, filingKind, originURL, html)
-						if err != nil {
-							log.Printf("Failed to create document for %v (%v): %v\n", listing.Name, listing.Ticker, err)
-							continue
-						}
-
-						text := documentloaders.NewText(strings.NewReader(html))
-						docs, err := text.LoadAndSplit(context.Background(), splitter)
-						if err != nil {
-							log.Printf("Failed to split document for %v (%v): %v\n", listing.Name, listing.Ticker, err)
-							continue
-						}
-
-						// Set document metadata. We only set the ID that matches
-						// the internal ID.
-						//
-						// Langchain sets document text for us.
-						for _, doc := range docs {
-							doc.Metadata = map[string]interface{}{
-								"ID": "123",
-							}
-						}
-
-						// Go in batches of 50 when pushing to Pinecone.
-						for i := 0; i <= len(docs); i += 50 {
-							end := i + 50
-							if end > len(docs) {
-								end = len(docs)
-							}
-
-							err = store.AddDocuments(context.Background(), docs[i:end])
-							if err != nil {
-								log.Fatal(err)
-							}
-						}
-					}
 				}
 			}
 		}
 	}
+}
+
+// processListing creates a company if it doesn't exist, fetches documents, and
+// stores them.
+func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing SECListing, splitter *Splitter, store vectorstores.VectorStore) error {
+	// Create or get a company in a transaction.
+	var company *models.Company
+	err := db.Transaction(func(tx *gorm.DB) (err error) {
+		company, err = models.GetCompany(db, listing.Ticker)
+		if err != nil {
+			company = nil
+			return err
+		}
+
+		if company != nil {
+			return nil
+		}
+
+		company, err = models.CreateCompany(db, listing.Name, listing.Ticker, listing.CIK, time.Time{})
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("could not create company for %v (%v): %w\n", listing.Name, listing.Ticker, err)
+	}
+
+	// If the company documents were fetched in the past 24 hours, don't fetch
+	// the company again.
+	if !company.LastFetchedAt.IsZero() && company.LastFetchedAt.Add(24*time.Hour).After(time.Now()) {
+		return nil
+	}
+
+	for _, filingKind := range []models.SourceKind{models.K10, models.Q10} {
+		if err := processFilingKind(db, logger, company, splitter, store, filingKind); err != nil {
+			logger.Errorw(fmt.Errorf("failed to process a filing kind for a company: %v", err.Error()).Error(), "ticker", company.Ticker, "filingKind", filingKind)
+			continue
+		}
+	}
+
+	return nil
+}
+
+// processFilingKind fetches filings of a particular kind for a company,
+// processes and stores them.
+func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.Company, splitter *Splitter, store vectorstores.VectorStore, filingKind models.SourceKind) error {
+	// Get the most recent document of the kind for the company.
+	document, err := models.GetMostRecentCompanyDocumentOfKind(db, company.ID, filingKind)
+	if err != nil {
+		return fmt.Errorf("failed to fetch most recent document for %v (%v): %w\n", company.Name, company.Ticker, err)
+	}
+
+	// Query for the last two years of documents if we have no documents for the
+	// company. Otherwise query for documents since the last document.
+	var lastFiledAt = time.Now().Add(-365 * 2 * 24 * time.Hour)
+	if document != nil {
+		lastFiledAt = document.FiledAt
+	}
+
+	// Get filings since the last filed time.
+	filings, err := getFilingsSince(company.CIK, filingKind, lastFiledAt)
+	if err != nil {
+		return fmt.Errorf("failed to fetch filings for %v (%v): %w\n", company.Name, company.Ticker, err)
+	}
+
+	// Process filings. We only process up to MAX_FILINGS_PER_COMPANY_PER_BATCH
+	// at a time. This guarantees that no company hogs the fetching pipeline for
+	// too long. If not all documents are fetched, next time the company is due
+	// for re-fetching we will continue where we left off by checking most
+	// recent document's filing time.
+	for _, filing := range filings[:MAX_FILINGS_PER_COMPANY_PER_BATCH] {
+		// Process the filing in a transaction. Processing a filing is atomic
+		// and involves three things: storing the file in the DB, storing the
+		// chunks in vector store, and updating the company. If any of these
+		// suboperations fail, we revert and abort.
+		if err := db.Transaction(func(tx *gorm.DB) error {
+			if err := processFiling(db, company, splitter, store, filingKind, filing); err != nil {
+				return fmt.Errorf("failed to process a filing with accession number %v for a company: %v", filing.AccessionNo, err.Error())
+			}
+
+			// Update the company's last fetched time after successfully
+			// processing a filing for it.
+			company.LastFetchedAt = time.Now()
+			err = db.Save(&company).Error
+			if err != nil {
+				return fmt.Errorf("failed to update company for %v (%v): %w\n", company.Name, company.Ticker, err)
+			}
+
+			return nil
+		}); err != nil {
+			return fmt.Errorf("failed to process a filing for a company: %v", err.Error())
+		}
+	}
+
+	return nil
+}
+
+// processFiling processes a filing and stores it.
+func processFiling(db *gorm.DB, company *models.Company, splitter *Splitter, store vectorstores.VectorStore, filingKind models.SourceKind, filing Filing) error {
+	// Get the filing file from the SEC.
+	originURL, file, err := getFilingFile(filing)
+	if err != nil {
+		return fmt.Errorf("failed to fetch filing file for %v (%v): %w\n", company.Name, company.Ticker, err)
+	}
+
+	// Convert the file to text.
+	html, err := html2text.FromString(string(file))
+	if err != nil {
+		return fmt.Errorf("failed to parse filing file for %v (%v): %w\n", company.Name, company.Ticker, err)
+	}
+
+	// Create the document.
+	filedAt, err := time.Parse(time.RFC3339, filing.FiledAt)
+	if err != nil {
+		return fmt.Errorf("failed to parse filing time for %v (%v): %w\n", company.Name, company.Ticker, err)
+	}
+
+	// By wrapping this piece of code in a transaction we ensure that the vector
+	// DB and documents in SQL are in sync. If a document fails to create, we
+	// obviously won't upload chunks to Pinecone. But if chunks fail to upload,
+	// we will revert document creation.
+	//
+	// Note that chunks are uploaded in batches, so a batch might succeed
+	// uploading and then a subsequent batch will fail, in which case there will
+	// be lingering chunks in vector store. This is not an acute issue -- we
+	// always query the vector store by filtering for document IDs, and if we
+	// don't have the document saved with this ID, the chunks will simply be
+	// "dead".
+	if err = db.Transaction(func(tx *gorm.DB) error {
+		document, err := models.CreateDocument(db, company, filedAt, filingKind, originURL, html)
+		if err != nil {
+			return fmt.Errorf("failed to create document for %v (%v): %w\n", company.Name, company.Ticker, err)
+		}
+
+		// Split the document into chunks.
+		text := documentloaders.NewText(strings.NewReader(html))
+		chunks, err := text.LoadAndSplit(context.Background(), splitter)
+		if err != nil {
+			return fmt.Errorf("failed to split document for %v (%v): %w\n", company.Name, company.Ticker, err)
+		}
+
+		// Store chunks in the vector store. In the future, we might want to store
+		// chunks in the SQL DB. This will largely depend on our supportability and
+		// debugging needs.
+		err = internal.StoreChunks(store, document.UUID, chunks)
+		if err != nil {
+			return fmt.Errorf("failed to store chunks for %v (%v): %w\n", company.Name, company.Ticker, err)
+		}
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }
