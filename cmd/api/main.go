@@ -34,10 +34,6 @@ func main() {
 
 	healthController := controllers.HealthController{}
 	usersController := controllers.UsersController{}
-	informationRetriever, err := internal.NewInformationRetriever()
-	if err != nil {
-		panic(err)
-	}
 
 	generator, err := internal.NewGenerator()
 	if err != nil {
@@ -45,8 +41,7 @@ func main() {
 	}
 
 	conversationController := controllers.ConversationController{
-		InformationRetriever: informationRetriever,
-		Generator:            generator,
+		Generator: generator,
 	}
 
 	r.GET("/health", healthController.Status)

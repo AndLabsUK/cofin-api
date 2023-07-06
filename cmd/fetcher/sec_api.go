@@ -97,7 +97,8 @@ type Entity struct {
 
 // Get companies traded on an exchange.
 func getTradedCompanies(exchange string) (listings []SECListing, err error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("https://api.sec-api.io/mapping/exchange/%v", "nyse"), nil)
+	const exchangeURLTemplate = "https://api.sec-api.io/mapping/exchange/%v"
+	req, err := http.NewRequest("GET", fmt.Sprintf(exchangeURLTemplate, exchange), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -123,14 +124,20 @@ func getTradedCompanies(exchange string) (listings []SECListing, err error) {
 	return listings, nil
 }
 
-// Get the filing file from the SEC.
+// Get the filing file from the SEC. Return the origin URL on the SEC website,
+// the file bytes, and an error, if there is one.
 func getFilingFile(filing Filing) (originURL string, file []byte, err error) {
-	_, fileName := path.Split(filing.LinkToFilingDetails)
-	accessionNumber := strings.ReplaceAll(filing.AccessionNo, "-", "")
-	originURL = fmt.Sprintf("https://www.sec.gov/Archives/edgar/data/%v/%v/%v", filing.CIK, accessionNumber, fileName)
+	// Template for paths to the original files on the SEC website.
+	const secFileURLTemplate = "https://www.sec.gov/Archives/edgar/data/%v/%v/%v"
+	// Template for downloadable files in the paid SEC API archive.
+	const secArchiveURLTemplate = "https://archive.sec-api.io/%v/%v/%v"
 
-	p := fmt.Sprintf("https://archive.sec-api.io/%v/%v/%v", filing.CIK, accessionNumber, fileName)
-	req, err := http.NewRequest("GET", p, nil)
+	// Get the file name.
+	_, fileName := path.Split(filing.LinkToFilingDetails)
+	// In the URL, the accession number should have no dashes.
+	accessionNumber := strings.ReplaceAll(filing.AccessionNo, "-", "")
+	originURL = fmt.Sprintf(secFileURLTemplate, filing.CIK, accessionNumber, fileName)
+	req, err := http.NewRequest("GET", fmt.Sprintf(secArchiveURLTemplate, filing.CIK, accessionNumber, fileName), nil)
 	if err != nil {
 		return "", nil, err
 	}
@@ -151,12 +158,10 @@ func getFilingFile(filing Filing) (originURL string, file []byte, err error) {
 	return originURL, f, nil
 }
 
-// TODO: Paginate.
 func getFilingsSince(cik string, kind models.SourceKind, since time.Time) (filings []Filing, err error) {
 	timeStart := since.Format(time.RFC3339)
 	timeEnd := time.Now().Format(time.RFC3339)
 
-	// TODO: paginate
 	var jsonStr = []byte(
 		fmt.Sprintf(`{
 			"query": {
@@ -166,9 +171,9 @@ func getFilingsSince(cik string, kind models.SourceKind, since time.Time) (filin
 				}
 			},
 			"from": "0",
-			"size": "20",
+			"size": "%v",
 			"sort": [{ "filedAt": { "order": "asc" } }]
-		}`, kind, timeStart, timeEnd, cik),
+		}`, kind, timeStart, timeEnd, cik, MAX_FILINGS_PER_COMPANY_PER_BATCH),
 	)
 
 	req, err := http.NewRequest("POST", "https://api.sec-api.io", bytes.NewBuffer(jsonStr))

@@ -9,7 +9,7 @@ func NewEmbedder() (*embeddings.OpenAI, error) {
 	if err != nil {
 		return nil, err
 	}
-	embedder.BatchSize = 30
+	embedder.BatchSize = 512
 
 	return &embedder, nil
 }
