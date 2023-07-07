@@ -60,3 +60,17 @@ func GetMostRecentCompanyDocumentOfKind(db *gorm.DB, companyID uint, kind Source
 
 	return &document, nil
 }
+
+func GetRecentCompanyDocuments(db *gorm.DB, companyID uint, limit int) ([]Document, error) {
+	var documents []Document
+	err := db.Where("company_id = ?", companyID).Order("filed_at DESC").Limit(limit).Find(&documents).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	return documents, nil
+}

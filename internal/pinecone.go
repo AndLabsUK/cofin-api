@@ -41,6 +41,7 @@ func StoreChunks(store vectorstores.VectorStore, documentUUID uuid.UUID, chunks 
 	for i := range chunks {
 		// Modify chunks in-place. They are not pointers.
 		chunks[i].Metadata = map[string]interface{}{
+			// TODO: rename this to document_uuid
 			"documentUUID": documentUUID,
 		}
 	}

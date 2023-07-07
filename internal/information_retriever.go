@@ -3,21 +3,23 @@ package internal
 import (
 	"cofin/models"
 	"context"
-	"errors"
 
+	"github.com/google/uuid"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/vectorstores"
+	"gorm.io/gorm"
 )
 
 // InformationRetriever can retrieve information based on keywords and
 // semantics.
 type InformationRetriever struct {
-	Embedder embeddings.Embedder
-	Store    vectorstores.VectorStore
-	TopK     int
+	db       *gorm.DB
+	embedder embeddings.Embedder
+	store    vectorstores.VectorStore
+	topK     int
 }
 
-func NewInformationRetriever(ticker string) (*InformationRetriever, error) {
+func NewInformationRetriever(db *gorm.DB, ticker string) (*InformationRetriever, error) {
 	embedder, err := NewEmbedder()
 	if err != nil {
 		return nil, err
@@ -29,30 +31,36 @@ func NewInformationRetriever(ticker string) (*InformationRetriever, error) {
 	}
 
 	return &InformationRetriever{
-		Embedder: embedder,
-		Store:    store,
-		TopK:     10,
+		db:       db,
+		embedder: embedder,
+		store:    store,
+		topK:     10,
 	}, nil
 }
 
-func (ir *InformationRetriever) Get(ctx context.Context, ticker string, year int, quarter models.Quarter, sourceKind models.SourceKind, text string) ([]string, error) {
-	if ticker != "$NET" {
-		return nil, errors.New("TODO: remove this check. Please use $NET as the ticker.")
+// For now, we always use two most recent documents available for any given
+// ticker. The ability to customise what documents to use will come in the paid
+// plan as we build up functionality. Ideally, we should be recognising what
+// period to retrieve documents for based on free-form user input.
+func (ir *InformationRetriever) GetDocuments(ctx context.Context, ticker string) (*models.Company, []models.Document, error) {
+	company, err := models.GetCompany(ir.db, ticker)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	if year != 2023 {
-		return nil, errors.New("TODO: remove this check. Please use 2023 as the year.")
+	documents, err := models.GetRecentCompanyDocuments(ir.db, company.ID, 2)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	if quarter != 1 {
-		return nil, errors.New("TODO: remove this check. Please use 1 as the quarter.")
-	}
+	return company, documents, nil
+}
 
-	if sourceKind != "10-Q" {
-		return nil, errors.New("TODO: remove this check. Please use 10-Q as the source type.")
-	}
-
-	docs, err := ir.Store.SimilaritySearch(context.Background(), text, ir.TopK)
+func (ir *InformationRetriever) GetSemanticChunks(ctx context.Context, ticker string, documentUUID uuid.UUID, text string) ([]string, error) {
+	// TODO: should I set the namespace here or in the constructor?
+	docs, err := ir.store.SimilaritySearch(context.Background(), text, ir.topK, vectorstores.WithNameSpace(ticker), vectorstores.WithFilters(map[string]string{
+		"documentUUID": documentUUID.String(),
+	}))
 	if err != nil {
 		return nil, err
 	}
