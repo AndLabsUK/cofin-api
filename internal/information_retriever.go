@@ -17,13 +17,13 @@ type InformationRetriever struct {
 	TopK     int
 }
 
-func NewInformationRetriever() (*InformationRetriever, error) {
+func NewInformationRetriever(ticker string) (*InformationRetriever, error) {
 	embedder, err := NewEmbedder()
 	if err != nil {
 		return nil, err
 	}
 
-	store, err := NewPinecone(context.Background(), embedder)
+	store, err := NewPinecone(context.Background(), embedder, ticker)
 	if err != nil {
 		return nil, err
 	}

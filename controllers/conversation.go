@@ -4,6 +4,7 @@ import (
 	"cofin/internal"
 	"cofin/models"
 	"log"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -50,8 +51,7 @@ type ConversationInput struct {
 }
 
 type ConversationController struct {
-	InformationRetriever *internal.InformationRetriever
-	Generator            *internal.Generator
+	Generator *internal.Generator
 }
 
 func (convo ConversationController) Respond(c *gin.Context) {
@@ -63,7 +63,14 @@ func (convo ConversationController) Respond(c *gin.Context) {
 		return
 	}
 
-	docs, err := convo.InformationRetriever.Get(c.Request.Context(), input.UserMessage.Ticker, input.UserMessage.Year, input.UserMessage.Quarter, input.UserMessage.SourceKind, input.UserMessage.Text)
+	informationRetriever, err := internal.NewInformationRetriever(strings.ToUpper(input.UserMessage.Ticker))
+	if err != nil {
+		log.Println(err)
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	docs, err := informationRetriever.Get(c.Request.Context(), input.UserMessage.Ticker, input.UserMessage.Year, input.UserMessage.Quarter, input.UserMessage.SourceKind, input.UserMessage.Text)
 	if err != nil {
 		log.Println(err)
 		c.JSON(500, gin.H{"error": err.Error()})
