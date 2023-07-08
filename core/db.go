@@ -2,6 +2,8 @@ package core
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 
 	"gorm.io/driver/postgres"
@@ -11,13 +13,22 @@ import (
 var db *gorm.DB
 
 func InitDB() (*gorm.DB, error) {
+
+	databaseUrl := os.Getenv("DATABASE_URL")
+	credentials, err := url.Parse(databaseUrl)
+
+	username := credentials.User.Username()
+	password, _ := credentials.User.Password()
+	host, port, _ := net.SplitHostPort(credentials.Host)
+	dbName := credentials.Path
+
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		os.Getenv("DB_HOST"),
-		os.Getenv("DB_USER"),
-		os.Getenv("DB_PASSWORD"),
-		os.Getenv("DB_NAME"),
-		os.Getenv("DB_PORT"),
-		os.Getenv("DB_SSL_MODE"),
+		host,
+		username,
+		password,
+		dbName,
+		port,
+		"prefer",
 	)
 
 	gormDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"cofin/cmd/main/api/middleware"
+	"cofin/cmd/api/middleware"
 	"cofin/controllers"
 	"github.com/gin-gonic/gin"
 )
