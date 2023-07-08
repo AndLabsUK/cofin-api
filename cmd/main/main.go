@@ -20,7 +20,12 @@ func main() {
 	}
 
 	// auto migrate the database
-	err = db.Debug().AutoMigrate(&models.User{}, &models.Company{}, &models.Document{})
+	err = db.Debug().AutoMigrate(
+		&models.User{},
+		&models.Company{},
+		&models.Document{},
+		&models.AccessToken{},
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -33,6 +38,7 @@ func main() {
 	}
 
 	healthController := controllers.HealthController{}
+	authController := controllers.AuthController{}
 	usersController := controllers.UsersController{}
 
 	generator, err := internal.NewGenerator()
@@ -44,9 +50,14 @@ func main() {
 		Generator: generator,
 	}
 
-	r.GET("/health", healthController.Status)
-	r.GET("/users", usersController.GetAll)
-	r.GET("/conversation", conversationController.Respond)
+	router := Router{
+		healthController:       &healthController,
+		authController:         &authController,
+		usersController:        &usersController,
+		conversationController: &conversationController,
+	}
+
+	router.RegisterRoutes(r)
 
 	err = r.Run()
 	if err != nil {

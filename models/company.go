@@ -9,7 +9,8 @@ import (
 )
 
 type Company struct {
-	gorm.Model
+	Generic
+
 	// Company name.
 	Name string `gorm:"not null"`
 	// Ticker symbol of the company. It is unique.
