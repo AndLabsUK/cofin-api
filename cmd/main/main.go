@@ -47,6 +47,7 @@ func main() {
 	}
 
 	conversationController := controllers.ConversationController{
+		DB:        db,
 		Generator: generator,
 	}
 
