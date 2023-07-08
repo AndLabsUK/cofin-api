@@ -34,13 +34,13 @@ func (a AuthController) SignIn(c *gin.Context) {
 
 		return nil, nil //TODO: Verify signature for JWT token using google public key (IMPORTANT)
 	})
-	if err == nil { //REPLACE to err != nil
+	if err != nil {
 		api.ResultError(c, []string{"invalidRequest"})
 		return
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok { //|| !token.Valid {
+	if !ok || !token.Valid {
 		api.ResultError(c, []string{"invalidRequest"})
 		return
 	}
