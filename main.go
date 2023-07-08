@@ -1,17 +1,15 @@
 package main
 
 import (
+	"cofin/fetcher"
 	"context"
-	"os"
-	"strconv"
-
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"os"
+	"strconv"
 
 	"cofin/controllers"
 	"cofin/core"
-	"cofin/fetcher"
 	"cofin/internal"
 	"cofin/models"
 )
@@ -46,12 +44,12 @@ func main() {
 		}
 
 		if runFetcherBool {
-			fetcher, err := fetcher.NewFetcher(db)
+			f, err := fetcher.NewFetcher(db)
 			if err != nil {
 				panic(err)
 			}
 
-			go fetcher.Loop(ctx)
+			go f.Loop(ctx)
 		}
 	}
 
@@ -61,8 +59,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
-	engine.MaxMultipartMemory = 8 << 20
 
 	engine.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "https://"+os.Getenv("UI_DOMAIN"))
@@ -80,13 +76,9 @@ func main() {
 	healthController := controllers.HealthController{}
 	authController := controllers.AuthController{}
 	usersController := controllers.UsersController{}
+	companiesController := controllers.CompaniesController{}
 
 	generator, err := internal.NewGenerator()
-	if err != nil {
-		panic(err)
-	}
-
-	logger, err := internal.NewLogger()
 	if err != nil {
 		panic(err)
 	}
@@ -94,13 +86,13 @@ func main() {
 	conversationController := controllers.ConversationController{
 		DB:        db,
 		Generator: generator,
-		Logger:    logger,
 	}
 
 	router := Router{
 		healthController:       &healthController,
 		authController:         &authController,
 		usersController:        &usersController,
+		companiesController:    &companiesController,
 		conversationController: &conversationController,
 	}
 
