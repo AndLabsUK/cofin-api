@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"cofin/cmd/api"
+	"cofin/api"
 	"cofin/core"
 	"github.com/gin-gonic/gin"
 )

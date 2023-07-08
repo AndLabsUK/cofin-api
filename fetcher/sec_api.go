@@ -15,7 +15,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 )
 
-// The list of exchanges we fetch companies from. London Stock Exchange WHEN?!
+// The list of exchanges we fetchDocuments companies from. London Stock Exchange WHEN?!
 var stockExchanges = []string{"nyse", "nasdaq"}
 
 // This is the response from the SEC API when we request a list of companies

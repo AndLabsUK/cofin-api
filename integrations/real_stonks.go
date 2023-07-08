@@ -53,21 +53,30 @@ func (rs RealStonks) GetMarketData(ticker string) (*TickerInformation, error) {
 
 func convertToFloat(s string) float64 {
 	suffix := s[len(s)-1:]
-	modifiedString := s[:len(s)-1]
-
-	value, err := strconv.ParseFloat(modifiedString, 64)
-	if err != nil {
-		panic(err)
-	}
-
 	switch suffix {
-	case "K":
-		value *= 1000
-	case "M":
-		value *= 1000000
-	case "B":
-		value *= 1000000000
-	}
+	case "K", "M", "B":
+		modifiedString := s[:len(s)-1]
 
-	return value
+		value, err := strconv.ParseFloat(modifiedString, 64)
+		if err != nil {
+			panic(err)
+		}
+
+		switch suffix {
+		case "K":
+			value *= 1000
+		case "M":
+			value *= 1000000
+		case "B":
+			value *= 1000000000
+		}
+
+		return value
+	default:
+		value, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			panic(err)
+		}
+		return value
+	}
 }
