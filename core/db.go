@@ -20,7 +20,7 @@ func InitDB() (*gorm.DB, error) {
 	username := credentials.User.Username()
 	password, _ := credentials.User.Password()
 	host, port, _ := net.SplitHostPort(credentials.Host)
-	dbName := credentials.Path
+	dbName := credentials.Path[1:]
 
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
 		host,
