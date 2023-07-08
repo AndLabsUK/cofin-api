@@ -5,6 +5,7 @@ import (
 	"cofin/core"
 	"cofin/models"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	"strconv"
 )
 
@@ -23,10 +24,19 @@ func (cc CompaniesController) GetCompanies(c *gin.Context) {
 		return
 	}
 
+	query := c.Query("query")
+
 	db, _ := core.GetDB()
 
 	var companies []models.Company
-	result := db.Offset(offset).Limit(limit).Order("total_volume desc").Find(&companies)
+	var result *gorm.DB
+
+	if len(query) > 0 {
+		result = db.Where("name LIKE ? OR ticker LIKE ?", "%"+query+"%", query+"%").Offset(offset).Limit(limit).Order("total_volume desc").Find(&companies)
+	} else {
+		result = db.Offset(offset).Limit(limit).Order("total_volume desc").Find(&companies)
+	}
+
 	if result.Error != nil {
 		api.ResultError(c, nil)
 	}

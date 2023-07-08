@@ -21,7 +21,7 @@ func (rs RealStonks) GetMarketData(ticker string) (*TickerInformation, error) {
 	type dto struct {
 		Price            float64 `json:"price"`
 		ChangePercentage float64 `json:"change_percentage"`
-		TotalVolume      string  `json:"total_volume"`
+		TotalVolume      string  `json:"total_vol"`
 	}
 
 	url := "https://realstonks.p.rapidapi.com/" + ticker

@@ -1,17 +1,15 @@
 package main
 
 import (
+	"cofin/fetcher"
 	"context"
-	"os"
-	"strconv"
-
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"os"
+	"strconv"
 
 	"cofin/controllers"
 	"cofin/core"
-	"cofin/fetcher"
 	"cofin/internal"
 	"cofin/models"
 )
@@ -46,12 +44,12 @@ func main() {
 		}
 
 		if runFetcherBool {
-			fetcher, err := fetcher.NewFetcher(db)
+			f, err := fetcher.NewFetcher(db)
 			if err != nil {
 				panic(err)
 			}
 
-			go fetcher.Loop(ctx)
+			go f.Loop(ctx)
 		}
 	}
 
@@ -85,15 +83,9 @@ func main() {
 		panic(err)
 	}
 
-	logger, err := internal.NewLogger()
-	if err != nil {
-		panic(err)
-	}
-
 	conversationController := controllers.ConversationController{
 		DB:        db,
 		Generator: generator,
-		Logger:    logger,
 	}
 
 	router := Router{
