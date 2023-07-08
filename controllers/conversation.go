@@ -1,25 +1,37 @@
 package controllers
 
 import (
+	"cofin/cmd/api"
 	"cofin/internal"
 	"cofin/models"
 	"errors"
-	"log"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 // TODO: log internal errors but don't expose them to the user
 
-// UserMessage describes user input to converse with the AI.
-type UserMessage struct {
+type MessageAuthor string
+
+const (
+	// MessageKindInput is a message from the user.
+	User MessageAuthor = "user"
+	// MessageKindOutput is a message from the Artificial Intelligence.
+	AI MessageAuthor = "ai"
+)
+
+// Message describes input or output of a conversation.
+type Message struct {
+	Author MessageAuthor `json:"author" binding:"required"`
 	// Text input from the user.
 	Text string `json:"text" binding:"required"`
-	// Ticker to which the user's message pertains.
-	Ticker string `json:"ticker" binding:"required"`
+	// Ticker is the copmany ticker. It is the "namespace" of the conversation.
+	Ticker  string   `json:"ticker" binding:"required"`
+	Sources []Source `json:"sources,omitempty"`
 }
 
 type Source struct {
@@ -29,72 +41,52 @@ type Source struct {
 	OriginURL string            `json:"origin_url" binding:"required"`
 }
 
-// AIMessage describes AI response to the user.
-type AIMessage struct {
-	// Text response from the AI.
-	Text    string   `json:"text" binding:"required"`
-	Sources []Source `json:"sources" binding:"required"`
-}
-
-// Exchange describes a series of messages exchanged between the user and the
-// AI.
-type Exchange struct {
-	UserMessage UserMessage `json:"user_message" binding:"required"`
-	AIMessage   AIMessage   `json:"ai_message" binding:"required"`
-}
-
-// ConversationInput describes an accumulated user-AI conversation.
-type ConversationInput struct {
-	// Latest user message that needs to be responded to.
-	UserMessage UserMessage `json:"user_message" binding:"required"`
-}
-
 type ConversationController struct {
 	DB        *gorm.DB
 	Generator *internal.Generator
+	Logger    *zap.SugaredLogger
 }
 
 // TODO: clean up response codes, user vs internal errors, logging, naming.
 func (convo ConversationController) Respond(c *gin.Context) {
-	input := ConversationInput{}
-	err := c.BindJSON(&input)
+	message := Message{}
+	err := c.BindJSON(&message)
 	if err != nil {
-		log.Println(err)
-		c.JSON(400, gin.H{"error": err.Error()})
+		api.ResultError(c, []string{err.Error()})
 		return
 	}
 
-	informationRetriever, err := internal.NewInformationRetriever(convo.DB, strings.ToUpper(input.UserMessage.Ticker))
+	retriever, err := internal.NewRetriever(convo.DB, strings.ToUpper(message.Ticker))
 	if err != nil {
-		log.Println(err)
-		c.JSON(500, gin.H{"error": err.Error()})
+		convo.Logger.Error(err)
+		api.ResultError(c, nil)
 		return
 	}
 
-	company, documents, err := informationRetriever.GetDocuments(c.Request.Context(), input.UserMessage.Ticker)
+	company, documents, err := retriever.GetDocuments(c.Request.Context(), message.Ticker)
 	if err != nil {
-		log.Println(err)
-		c.JSON(500, gin.H{"error": err.Error()})
+		convo.Logger.Error(err)
+		api.ResultError(c, nil)
 		return
 	}
 
 	if company == nil {
-		c.JSON(400, gin.H{"error": errors.New("Unknown ticker").Error()})
+		api.ResultError(c, []string{errors.New("Unknown ticker").Error()})
 		return
 	}
 
 	if documents == nil {
-		c.JSON(400, gin.H{"error": errors.New("No documents found for the ticker").Error()})
+		api.ResultError(c, []string{errors.New("No documents found for the ticker").Error()})
 		return
 	}
 
 	var allChunks = make([][]string, 0, len(documents))
 	var sources = make([]Source, 0, len(documents))
 	for _, document := range documents {
-		chunks, err := informationRetriever.GetSemanticChunks(c.Request.Context(), input.UserMessage.Ticker, document.UUID, input.UserMessage.Text)
+		chunks, err := retriever.GetSemanticChunks(c.Request.Context(), message.Ticker, document.UUID, message.Text)
 		if err != nil {
-			log.Println(err)
-			c.JSON(500, gin.H{"error": err.Error()})
+			convo.Logger.Error(err)
+			api.ResultError(c, nil)
 			return
 		}
 
@@ -107,12 +99,12 @@ func (convo ConversationController) Respond(c *gin.Context) {
 		})
 	}
 
-	response, err := convo.Generator.Continue(c.Request.Context(), *company, documents, allChunks, input.UserMessage.Text)
+	response, err := convo.Generator.Continue(c.Request.Context(), *company, documents, allChunks, message.Text)
 	if err != nil {
-		log.Println(err)
-		c.JSON(500, gin.H{"error": err.Error()})
+		convo.Logger.Error(err)
+		api.ResultError(c, nil)
 		return
 	}
 
-	c.JSON(200, AIMessage{Text: response, Sources: sources})
+	api.ResultData(c, Message{Ticker: message.Ticker, Author: AI, Text: response, Sources: sources})
 }

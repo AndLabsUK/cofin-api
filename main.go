@@ -1,12 +1,17 @@
 package main
 
 import (
+	"context"
+	"os"
+	"strconv"
+
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"os"
 
 	"cofin/controllers"
 	"cofin/core"
+	"cofin/fetcher"
 	"cofin/internal"
 	"cofin/models"
 )
@@ -29,6 +34,25 @@ func main() {
 	)
 	if err != nil {
 		panic(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if runFetcher := os.Getenv("RUN_FETCHER"); runFetcher != "" {
+		runFetcherBool, err := strconv.ParseBool(runFetcher)
+		if err != nil {
+			panic(err)
+		}
+
+		if runFetcherBool {
+			fetcher, err := fetcher.NewFetcher(db)
+			if err != nil {
+				panic(err)
+			}
+
+			go fetcher.Loop(ctx)
+		}
 	}
 
 	// set up http server
@@ -61,9 +85,15 @@ func main() {
 		panic(err)
 	}
 
+	logger, err := internal.NewLogger()
+	if err != nil {
+		panic(err)
+	}
+
 	conversationController := controllers.ConversationController{
 		DB:        db,
 		Generator: generator,
+		Logger:    logger,
 	}
 
 	router := Router{

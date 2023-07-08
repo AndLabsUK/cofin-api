@@ -5,11 +5,12 @@ import (
 	"cofin/core"
 	"cofin/models"
 	"fmt"
+	"math/rand"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
-	"math/rand"
-	"time"
 )
 
 type AuthController struct{}
@@ -26,7 +27,6 @@ func (a AuthController) SignIn(c *gin.Context) {
 		return
 	}
 
-	////////
 	token, err := jwt.Parse(payload.JWTToken, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, fmt.Errorf("Unexpected JWT signing method: %v", token.Header["alg"])
