@@ -3,8 +3,12 @@ package controllers
 import (
 	"cofin/api"
 	"cofin/core"
+	"cofin/integrations"
 	"cofin/models"
+	"crypto/rsa"
+	"encoding/base64"
 	"fmt"
+	"math/big"
 	"math/rand"
 	"time"
 
@@ -32,7 +36,33 @@ func (a AuthController) SignIn(c *gin.Context) {
 			return nil, fmt.Errorf("Unexpected JWT signing method: %v", token.Header["alg"])
 		}
 
-		return nil, nil //TODO: Verify signature for JWT token using google public key (IMPORTANT)
+		kid := token.Header["kid"].(string)
+
+		googlePki := integrations.GooglePKI{}
+		key, err := googlePki.GetPublicKeyForKid(kid)
+		if err != nil {
+			return nil, err
+		}
+
+		n, err := base64.RawURLEncoding.DecodeString(key.N)
+		if err != nil {
+			return nil, err
+		}
+
+		e, err := base64.RawURLEncoding.DecodeString(key.E)
+		if err != nil {
+			return nil, err
+		}
+
+		modulus := new(big.Int).SetBytes(n)
+		exponent := big.NewInt(0).SetBytes(e).Uint64()
+
+		rsaPubKey := &rsa.PublicKey{
+			N: modulus,
+			E: int(exponent),
+		}
+
+		return rsaPubKey, nil
 	})
 	if err != nil {
 		api.ResultError(c, []string{"invalidRequest"})
