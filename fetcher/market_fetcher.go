@@ -38,7 +38,7 @@ func fetchMarket(db *gorm.DB, logger *zap.SugaredLogger) {
 	var companies []models.Company
 	result := db.Find(&companies)
 	if result.Error != nil {
-		logger.Errorf("Failed to fetchDocuments list of companies from database: %v", result.Error)
+		logger.Errorf("Failed to fetch list of companies from database: %v", result.Error)
 		return
 	}
 
@@ -58,7 +58,7 @@ func fetchMarket(db *gorm.DB, logger *zap.SugaredLogger) {
 				logger.Infof("Unable to update market data for %v: %v", company.Ticker, tx.Error)
 			}
 		} else {
-			logger.Infof("Unable to fetchDocuments market data for %v", company.Ticker)
+			logger.Infof("Unable to fetch market data for %v", company.Ticker)
 		}
 	}
 
