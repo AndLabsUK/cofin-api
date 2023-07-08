@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"os"
 
 	"cofin/controllers"
 	"cofin/core"
@@ -31,11 +32,26 @@ func main() {
 	}
 
 	// set up http server
-	r := gin.Default()
-	err = r.SetTrustedProxies(nil)
+	engine := gin.Default()
+	err = engine.SetTrustedProxies(nil)
 	if err != nil {
 		panic(err)
 	}
+
+	engine.MaxMultipartMemory = 8 << 20
+
+	engine.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "https://"+os.Getenv("UI_DOMAIN"))
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, Authorization, Accept, Origin, Cache-Control, X-Requested-With, X-Authorization")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		c.Next()
+	})
 
 	healthController := controllers.HealthController{}
 	authController := controllers.AuthController{}
@@ -58,9 +74,9 @@ func main() {
 		conversationController: &conversationController,
 	}
 
-	router.RegisterRoutes(r)
+	router.RegisterRoutes(engine)
 
-	err = r.Run()
+	err = engine.Run()
 	if err != nil {
 		return
 	}
