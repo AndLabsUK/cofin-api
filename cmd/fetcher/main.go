@@ -235,6 +235,10 @@ func processFiling(db *gorm.DB, logger *zap.SugaredLogger, company *models.Compa
 		}
 
 		// Split the document into chunks.
+		//
+		// TODO: use https://sec-api.io/docs/sec-filings-item-extraction-api
+		//
+		// TODO: carefully parse table data and numerical data. Use this? https://sec-api.io/docs/xbrl-to-json-converter-api
 		text := documentloaders.NewText(strings.NewReader(html))
 		chunks, err := text.LoadAndSplit(context.Background(), splitter)
 		if err != nil {

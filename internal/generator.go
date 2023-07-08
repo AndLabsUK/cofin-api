@@ -1,9 +1,10 @@
 package internal
 
 import (
+	"cofin/models"
 	"context"
 	"fmt"
-	"strings"
+	"log"
 
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/openai"
@@ -16,8 +17,10 @@ type Generator struct {
 	Chat llms.ChatLLM
 }
 
+// NewGenerator creates a new conversation generator.
 func NewGenerator() (*Generator, error) {
-	chat, err := openai.NewChat(openai.WithModel("gpt-3.5-turbo"))
+	// TODO: decide what model to use
+	chat, err := openai.NewChat(openai.WithModel("gpt-3.5-turbo-16k"))
 	if err != nil {
 		return nil, err
 	}
@@ -27,33 +30,58 @@ func NewGenerator() (*Generator, error) {
 	}, nil
 }
 
-func (g *Generator) Continue(sources []string, text string) (string, error) {
-	// TODO: use prompt templates
-	// TODO: use langchain memory
-	res, err := g.Chat.Call(context.Background(), []schema.ChatMessage{
+// Continue generates a continuation to a conversation. It accepts a list of
+// documents as context as well as a list of chunks of text relevant from each
+// document, and the user message. It outputs a response and an error.
+//
+// TODO: use existing messages
+//
+// TODO: use prompt templates
+//
+// TODO: use langchain memory
+func (g *Generator) Continue(ctx context.Context, company models.Company, documents []models.Document, chunks [][]string, message string) (string, error) {
+	messages := []schema.ChatMessage{
 		schema.SystemChatMessage{
-			Text: `
+			Text: fmt.Sprintf(`
 			You are Artificial Intelligence built purposely to analyse financial filings of publicly traded companies and answer questions based on them.
-			Below you will find a list of paragraphs from the 10-Q filing of Cloudflare, Inc. for the quarter ended March 31, 2023.
+			Below you will find a list of paragraphs from the documents of %v ($%v). 
 			Please read them and answer the user message below. You can optionally use the provided paragraph as context to answer the user.
 			You may choose not to use the paragraphs in your answer.
 			Think step by step and explain your reasoning.
-			`,
+			`, company.Name, company.Ticker),
 		},
 		schema.AIChatMessage{
 			Text: `Understood.`,
 		},
-		schema.SystemChatMessage{
-			Text: fmt.Sprintf("Here are the paragraphs from Cloudflare's ($NET) 10-Q filing from March 31, 2023 most relevant to user's input:\n%v", strings.Join(sources, "\n")),
-		},
-		schema.AIChatMessage{
-			Text: `Sounds good.`,
-		},
-		schema.HumanChatMessage{
-			Text: text,
-		},
+	}
+
+	for i, document := range documents {
+		var bigChunk string
+		for j, chunk := range chunks[i] {
+			bigChunk += fmt.Sprintf("Paragraph %v: %v\n", j+1, chunk)
+		}
+
+		messages = append(messages, schema.SystemChatMessage{
+			Text: fmt.Sprintf(`
+			Below are a few select paragraphs from the %v document filed at %v.
+			These paragraphs are not necessarily consecutive and may have been extracted from different parts of the file.
+			%v
+			`, document.Kind, document.FiledAt, bigChunk),
+		})
+	}
+
+	messages = append(messages, schema.AIChatMessage{
+		Text: "Excellent. I am happy to help analyse this information. Now please provide me with the user question.",
 	})
 
+	messages = append(messages, schema.HumanChatMessage{
+		Text: message,
+	})
+
+	log.Println(messages)
+
+	// TODO: why do I have to set the model here and not in the constructor?
+	res, err := g.Chat.Call(ctx, messages, func(o *llms.CallOptions) { o.Model = "gpt-3.5-turbo-16k" })
 	if err != nil {
 		return "", err
 	}
