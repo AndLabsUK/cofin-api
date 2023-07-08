@@ -70,9 +70,15 @@ func main() {
 		panic(err)
 	}
 
+	logger, err := internal.NewLogger()
+	if err != nil {
+		panic(err)
+	}
+
 	conversationController := controllers.ConversationController{
 		DB:        db,
 		Generator: generator,
+		Logger:    logger,
 	}
 
 	router := Router{
