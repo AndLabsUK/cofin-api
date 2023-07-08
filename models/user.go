@@ -1,8 +1,9 @@
 package models
 
-import "gorm.io/gorm"
-
 type User struct {
-	gorm.Model
-	Email string `gorm:"unique"`
+	Generic
+
+	Email             string `gorm:"unique" json:"-"`
+	FullName          string `gorm:"not null" json:"full_name"`
+	FirebaseSubjectId string `gorm:"unique" json:"-"`
 }

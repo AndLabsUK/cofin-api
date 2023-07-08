@@ -1,20 +1,21 @@
 package controllers
 
 import (
+	"cofin/cmd/main/api"
+	"cofin/cmd/main/api/middleware"
 	"cofin/core"
 	"cofin/models"
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 )
 
 type UsersController struct{}
 
-func (u UsersController) GetAll(c *gin.Context) {
+func (u UsersController) GetCurrentUser(c *gin.Context) {
 	db, _ := core.GetDB()
 
-	var users []models.User
-	db.Find(&users)
+	var user models.User
+	userId := middleware.CurrentUserId(c)
+	db.First(&user, userId)
 
-	c.JSON(http.StatusOK, gin.H{"users": users})
+	api.ResultData(c, user)
 }

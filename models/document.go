@@ -13,7 +13,8 @@ import (
 // reasons. In search, we use different representations of these documents, such
 // as their chunks.
 type Document struct {
-	gorm.Model
+	Generic
+
 	CompanyID uint `gorm:"index;not null"`
 	Company   Company
 	// UUID is used to ensure consistency with vector storage. Since we don't
