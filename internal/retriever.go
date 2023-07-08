@@ -58,7 +58,7 @@ func (r *Retriever) GetDocuments(ctx context.Context, ticker string) (*models.Co
 func (r *Retriever) GetSemanticChunks(ctx context.Context, ticker string, documentUUID uuid.UUID, text string) ([]string, error) {
 	// TODO: should I set the namespace here or in the constructor?
 	docs, err := r.store.SimilaritySearch(context.Background(), text, r.topK, vectorstores.WithNameSpace(ticker), vectorstores.WithFilters(map[string]string{
-		"documentUUID": documentUUID.String(),
+		"document_uuid": documentUUID.String(),
 	}))
 	if err != nil {
 		return nil, err

@@ -1,7 +1,6 @@
-package main
+package fetcher
 
 import (
-	"cofin/core"
 	"cofin/internal"
 	"cofin/models"
 	"context"
@@ -10,7 +9,6 @@ import (
 	"time"
 
 	"github.com/jaytaylor/html2text"
-	"github.com/joho/godotenv"
 	"github.com/tmc/langchaingo/documentloaders"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/vectorstores"
@@ -20,67 +18,91 @@ import (
 
 const MAX_FILINGS_PER_COMPANY_PER_BATCH = 20
 
-func main() {
-	// Load environment variables.
-	err := godotenv.Load()
-	if err != nil {
-		panic(err)
-	}
+type Fetcher struct {
+	db       *gorm.DB
+	embedder *embeddings.OpenAI
+	splitter *Splitter
+	logger   *zap.SugaredLogger
+}
 
-	// Connect to the database.
-	db, err := core.InitDB()
-	if err != nil {
-		panic(err)
-	}
-
+func NewFetcher(db *gorm.DB) (*Fetcher, error) {
 	// Initialize the embedder.
 	embedder, err := internal.NewEmbedder()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	// Initialize text splitter.
 	splitter, err := NewSplitter(1000, 100)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
+	// Initialize logger.
 	logger, err := internal.NewLogger()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
+	return &Fetcher{
+		db:       db,
+		embedder: embedder,
+		splitter: splitter,
+		logger:   logger,
+	}, nil
+}
+
+func (f *Fetcher) Loop(ctx context.Context) {
+	logger := f.logger
+	embedder := f.embedder
+	splitter := f.splitter
+	db := f.db
+
 	// We could run this once a month and that'd be enough.
-	t := time.NewTicker(1 * time.Hour)
-	for ; true; <-t.C {
-		logger.Info("Running fetching job...")
+	f.logger.Info("Starting fetcher loop...")
+	t := time.NewTicker(6 * time.Hour)
+	trueChan := make(chan bool, 1)
+	trueChan <- true
+	select {
+	case <-ctx.Done():
+		return
+	case <-trueChan:
+		f.logger.Info("Fetching once before starting the loop...")
+		fetch(db, logger, embedder, splitter)
+	case <-t.C:
+		fetch(db, logger, embedder, splitter)
+	}
+}
 
-		// Go over all stock exchanges.
-		for _, exchange := range stockExchanges {
-			logger.Infof("Fetching exchange: %v", exchange)
+// TODO: check ctx for cancellation.
+func fetch(db *gorm.DB, logger *zap.SugaredLogger, embedder *embeddings.OpenAI, splitter *Splitter) {
+	logger.Info("Running fetching job...")
 
-			// Get listings for the exchange.
-			listings, err := getTradedCompanies(exchange)
-			if err != nil {
-				logger.Errorw(fmt.Errorf("failed to get companies traded on an exchange: %v", err.Error()).Error(), "exchange", exchange)
+	// Go over all stock exchanges.
+	for _, exchange := range stockExchanges {
+		logger.Infof("Fetching exchange: %v", exchange)
+
+		// Get listings for the exchange.
+		listings, err := getTradedCompanies(exchange)
+		if err != nil {
+			logger.Errorw(fmt.Errorf("failed to get companies traded on an exchange: %v", err.Error()).Error(), "exchange", exchange)
+			continue
+		}
+
+		for _, listing := range listings {
+			// Skip delisted companies.
+			if listing.IsDelisted {
+				logger.Infof("Skipping delisted company: %v", listing.Ticker)
 				continue
 			}
+			logger.Infof("Processing company: %v", listing.Ticker)
 
-			for _, listing := range listings {
-				// Skip delisted companies.
-				if listing.IsDelisted {
-					logger.Infof("Skipping delisted company: %v", listing.Ticker)
-					continue
-				}
-				logger.Infof("Processing company: %v", listing.Ticker)
-
-				// Create the company if it doesn't exist, fetch documents, and
-				// store them.
-				err := processListing(db, logger, listing, embedder, splitter)
-				if err != nil {
-					logger.Errorw(fmt.Errorf("failed to process a listing: %v", err.Error()).Error(), "ticker", listing.Ticker)
-					continue
-				}
+			// Create the company if it doesn't exist, fetch documents, and
+			// store them.
+			err := processListing(db, logger, listing, embedder, splitter)
+			if err != nil {
+				logger.Errorw(fmt.Errorf("failed to process a listing: %v", err.Error()).Error(), "ticker", listing.Ticker)
+				continue
 			}
 		}
 	}
@@ -145,11 +167,13 @@ func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.C
 
 	// Query for the last two years of documents if we have no documents for the
 	// company. Otherwise query for documents since the last document.
+
+	// TODO: bug -- found duplicate documents.
 	var lastFiledAt = time.Now().Add(-365 * 2 * 24 * time.Hour)
 	if document != nil {
 		lastFiledAt = document.FiledAt
 	} else {
-		logger.Infof("No documents found for %v (%v), fetching all documents since %v", company.Name, company.Ticker, lastFiledAt)
+		logger.Infof("No documents found for %v (%v) of kind %v, fetching all documents since %v", company.Name, company.Ticker, filingKind, lastFiledAt)
 	}
 
 	// Get filings since the last filed time.

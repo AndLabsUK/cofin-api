@@ -58,12 +58,14 @@ func (convo ConversationController) Respond(c *gin.Context) {
 
 	retriever, err := internal.NewRetriever(convo.DB, strings.ToUpper(message.Ticker))
 	if err != nil {
+		log.Println(err)
 		api.ResultError(c, nil)
 		return
 	}
 
 	company, documents, err := retriever.GetDocuments(c.Request.Context(), message.Ticker)
 	if err != nil {
+		log.Println(err)
 		api.ResultError(c, nil)
 		return
 	}
@@ -83,6 +85,7 @@ func (convo ConversationController) Respond(c *gin.Context) {
 	for _, document := range documents {
 		chunks, err := retriever.GetSemanticChunks(c.Request.Context(), message.Ticker, document.UUID, message.Text)
 		if err != nil {
+			log.Println(err)
 			api.ResultError(c, nil)
 			return
 		}
@@ -98,6 +101,7 @@ func (convo ConversationController) Respond(c *gin.Context) {
 
 	response, err := convo.Generator.Continue(c.Request.Context(), *company, documents, allChunks, message.Text)
 	if err != nil {
+		log.Println(err)
 		api.ResultError(c, nil)
 		return
 	}
