@@ -3,6 +3,7 @@ package main
 import (
 	"cofin/cmd/api/middleware"
 	"cofin/controllers"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -19,7 +20,7 @@ func (r Router) RegisterRoutes(router gin.IRouter) {
 	// Anonymous requests
 	//
 	router.GET("/health", r.healthController.Status)
-	router.GET("/conversation", r.conversationController.Respond)
+	router.POST("/conversation", r.conversationController.Respond)
 
 	router.POST("/auth", r.authController.SignIn)
 
