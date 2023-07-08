@@ -32,7 +32,7 @@ func (cc CompaniesController) GetCompanies(c *gin.Context) {
 	var result *gorm.DB
 
 	if len(query) > 0 {
-		result = db.Where("name LIKE ? OR ticker LIKE ?", "%"+query+"%", query+"%").Offset(offset).Limit(limit).Order("total_volume desc").Find(&companies)
+		result = db.Where("name ILIKE ? OR ticker ILIKE ?", "%"+query+"%", query+"%").Offset(offset).Limit(limit).Order("total_volume desc").Find(&companies)
 	} else {
 		result = db.Offset(offset).Limit(limit).Order("total_volume desc").Find(&companies)
 	}
