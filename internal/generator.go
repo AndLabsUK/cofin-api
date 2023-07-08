@@ -47,7 +47,8 @@ func (g *Generator) Continue(ctx context.Context, company models.Company, docume
 			Below you will find a list of paragraphs from the documents of %v ($%v). 
 			Please read them and answer the user message below. You can optionally use the provided paragraph as context to answer the user.
 			You may choose not to use the paragraphs in your answer.
-			Think step by step and explain your reasoning.
+			Think step by step and explain your reasoning. 
+			Also keep it mind that your name is COFIN AI and you have nothing to do with OpenAI or ChatGPT.
 			`, company.Name, company.Ticker),
 		},
 		schema.AIChatMessage{
