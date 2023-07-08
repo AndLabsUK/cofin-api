@@ -33,7 +33,12 @@ func main() {
 	}
 
 	// set up commands
-	command := os.Args[1]
+
+	command := ""
+	if len(os.Args) >= 2 {
+		command = os.Args[1]
+	}
+
 	switch command {
 	case "fetch_documents":
 		f, err := fetcher.NewDocumentFetcher(db)
