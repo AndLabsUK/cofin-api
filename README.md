@@ -7,16 +7,12 @@ To start, make sure you have a `.env` file following the example in `.env.exampl
 Generate a response.
 
 ```
-curl --location --request GET 'http://localhost:8080/conversation' \
+curl --location 'http://localhost:8080/conversation' \
+--header 'Authorization: 783bc63759a37295812c9b486da39f9a0bfa53d41d5bd3ee248739f931ba9234' \
 --header 'Content-Type: application/json' \
 --data '{
-    "exchanges": [],
-    "user_message": {
-        "text": "How much did the company earn?",
-        "ticker": "$NET",
-        "year": 2023,
-        "quarter": 1,
-        "source_type": "10-Q"
-    }
+    "author": "user",
+    "text": "Did the company revenue grow or contract?",
+    "ticker": "AAC"
 }'
 ```

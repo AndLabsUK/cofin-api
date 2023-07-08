@@ -5,28 +5,28 @@ import (
 	"cofin/internal"
 	"cofin/models"
 	"errors"
-	"log"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 // TODO: log internal errors but don't expose them to the user
 
-type MessageKind string
+type MessageAuthor string
 
 const (
 	// MessageKindInput is a message from the user.
-	MessageKindInput MessageKind = "user"
+	User MessageAuthor = "user"
 	// MessageKindOutput is a message from the Artificial Intelligence.
-	MessageKindOutput MessageKind = "ai"
+	AI MessageAuthor = "ai"
 )
 
 // Message describes input or output of a conversation.
 type Message struct {
-	MessageKind MessageKind `json:"message_kind" binding:"required"`
+	Author MessageAuthor `json:"author" binding:"required"`
 	// Text input from the user.
 	Text string `json:"text" binding:"required"`
 	// Ticker is the copmany ticker. It is the "namespace" of the conversation.
@@ -44,6 +44,7 @@ type Source struct {
 type ConversationController struct {
 	DB        *gorm.DB
 	Generator *internal.Generator
+	Logger    *zap.SugaredLogger
 }
 
 // TODO: clean up response codes, user vs internal errors, logging, naming.
@@ -51,21 +52,20 @@ func (convo ConversationController) Respond(c *gin.Context) {
 	message := Message{}
 	err := c.BindJSON(&message)
 	if err != nil {
-		log.Println(err)
 		api.ResultError(c, []string{err.Error()})
 		return
 	}
 
 	retriever, err := internal.NewRetriever(convo.DB, strings.ToUpper(message.Ticker))
 	if err != nil {
-		log.Println(err)
+		convo.Logger.Error(err)
 		api.ResultError(c, nil)
 		return
 	}
 
 	company, documents, err := retriever.GetDocuments(c.Request.Context(), message.Ticker)
 	if err != nil {
-		log.Println(err)
+		convo.Logger.Error(err)
 		api.ResultError(c, nil)
 		return
 	}
@@ -85,7 +85,7 @@ func (convo ConversationController) Respond(c *gin.Context) {
 	for _, document := range documents {
 		chunks, err := retriever.GetSemanticChunks(c.Request.Context(), message.Ticker, document.UUID, message.Text)
 		if err != nil {
-			log.Println(err)
+			convo.Logger.Error(err)
 			api.ResultError(c, nil)
 			return
 		}
@@ -101,10 +101,10 @@ func (convo ConversationController) Respond(c *gin.Context) {
 
 	response, err := convo.Generator.Continue(c.Request.Context(), *company, documents, allChunks, message.Text)
 	if err != nil {
-		log.Println(err)
+		convo.Logger.Error(err)
 		api.ResultError(c, nil)
 		return
 	}
 
-	api.ResultData(c, Message{Ticker: message.Ticker, MessageKind: MessageKindOutput, Text: response, Sources: sources})
+	api.ResultData(c, Message{Ticker: message.Ticker, Author: AI, Text: response, Sources: sources})
 }
