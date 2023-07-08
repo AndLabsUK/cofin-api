@@ -1,17 +1,15 @@
 package main
 
 import (
-	"cofin/fetcher"
-	"context"
-	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
-	"os"
-	"strconv"
-
 	"cofin/controllers"
 	"cofin/core"
+	"cofin/fetcher"
 	"cofin/internal"
 	"cofin/models"
+	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
+	"gorm.io/gorm"
+	"os"
 )
 
 func main() {
@@ -34,28 +32,34 @@ func main() {
 		panic(err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	if runFetcher := os.Getenv("RUN_FETCHER"); runFetcher != "" {
-		runFetcherBool, err := strconv.ParseBool(runFetcher)
+	// set up commands
+	command := os.Args[1]
+	switch command {
+	case "fetch_documents":
+		f, err := fetcher.NewDocumentFetcher(db)
 		if err != nil {
 			panic(err)
 		}
 
-		if runFetcherBool {
-			f, err := fetcher.NewFetcher(db)
-			if err != nil {
-				panic(err)
-			}
-
-			go f.Loop(ctx)
+		f.Run()
+		return
+	case "fetch_market":
+		f, err := fetcher.NewMarketFetcher(db)
+		if err != nil {
+			panic(err)
 		}
-	}
 
+		f.Run()
+		return
+	default:
+		runServer(db)
+	}
+}
+
+func runServer(db *gorm.DB) {
 	// set up http server
 	engine := gin.Default()
-	err = engine.SetTrustedProxies(nil)
+	err := engine.SetTrustedProxies(nil)
 	if err != nil {
 		panic(err)
 	}

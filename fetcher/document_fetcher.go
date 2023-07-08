@@ -19,33 +19,30 @@ import (
 
 const MAX_FILINGS_PER_COMPANY_PER_BATCH = 20
 
-type Fetcher struct {
+type DocumentFetcher struct {
 	db       *gorm.DB
 	embedder *embeddings.OpenAI
 	splitter *Splitter
 	logger   *zap.SugaredLogger
 }
 
-func NewFetcher(db *gorm.DB) (*Fetcher, error) {
-	// Initialize the embedder.
+func NewDocumentFetcher(db *gorm.DB) (*DocumentFetcher, error) {
 	embedder, err := internal.NewEmbedder()
 	if err != nil {
 		return nil, err
 	}
 
-	// Initialize text splitter.
 	splitter, err := NewSplitter(1000, 100)
 	if err != nil {
 		return nil, err
 	}
 
-	// Initialize logger.
 	logger, err := internal.NewLogger()
 	if err != nil {
 		return nil, err
 	}
 
-	return &Fetcher{
+	return &DocumentFetcher{
 		db:       db,
 		embedder: embedder,
 		splitter: splitter,
@@ -53,30 +50,17 @@ func NewFetcher(db *gorm.DB) (*Fetcher, error) {
 	}, nil
 }
 
-func (f *Fetcher) Loop(ctx context.Context) {
+func (f *DocumentFetcher) Run() {
 	logger := f.logger
 	embedder := f.embedder
 	splitter := f.splitter
 	db := f.db
 
-	// We could run this once a month and that'd be enough.
-	f.logger.Info("Starting fetcher loop...")
-	t := time.NewTicker(6 * time.Hour)
-	trueChan := make(chan bool, 1)
-	trueChan <- true
-	select {
-	case <-ctx.Done():
-		return
-	case <-trueChan:
-		f.logger.Info("Fetching once before starting the loop...")
-		fetch(db, logger, embedder, splitter)
-	case <-t.C:
-		fetch(db, logger, embedder, splitter)
-	}
+	fetchDocuments(db, logger, embedder, splitter)
 }
 
 // TODO: check ctx for cancellation.
-func fetch(db *gorm.DB, logger *zap.SugaredLogger, embedder *embeddings.OpenAI, splitter *Splitter) {
+func fetchDocuments(db *gorm.DB, logger *zap.SugaredLogger, embedder *embeddings.OpenAI, splitter *Splitter) {
 	logger.Info("Running fetching job...")
 
 	// Go over all stock exchanges.
@@ -98,7 +82,7 @@ func fetch(db *gorm.DB, logger *zap.SugaredLogger, embedder *embeddings.OpenAI, 
 			}
 			logger.Infof("Processing company: %v", listing.Ticker)
 
-			// Create the company if it doesn't exist, fetch documents, and
+			// Create the company if it doesn't exist, fetchDocuments documents, and
 			// store them.
 			err := processListing(db, logger, listing, embedder, splitter)
 			if err != nil {
@@ -139,7 +123,7 @@ func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing SECListing, 
 		panic(err)
 	}
 
-	// If the company documents were fetched in the past 24 hours, don't fetch
+	// If the company documents were fetched in the past 24 hours, don't fetchDocuments
 	// the company again.
 	if !company.LastFetchedAt.IsZero() && company.LastFetchedAt.Add(24*time.Hour).After(time.Now()) {
 		logger.Infof("Skipping company %v because it has been fetched in the past 24 hours", listing.Ticker)
@@ -168,7 +152,7 @@ func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing SECListing, 
 		}
 
 	} else {
-		logger.Infof("Unable to fetch market data for %v", listing.Ticker)
+		logger.Infof("Unable to fetchDocuments market data for %v", listing.Ticker)
 	}
 
 	return nil
@@ -180,7 +164,7 @@ func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.C
 	// Get the most recent document of the kind for the company.
 	document, err := models.GetMostRecentCompanyDocumentOfKind(db, company.ID, filingKind)
 	if err != nil {
-		return fmt.Errorf("failed to fetch most recent document for %v (%v): %w\n", company.Name, company.Ticker, err)
+		return fmt.Errorf("failed to fetchDocuments most recent document for %v (%v): %w\n", company.Name, company.Ticker, err)
 	}
 
 	// Query for the last two years of documents if we have no documents for the
@@ -197,7 +181,7 @@ func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.C
 	// Get filings since the last filed time.
 	filings, err := getFilingsSince(company.CIK, filingKind, lastFiledAt)
 	if err != nil {
-		return fmt.Errorf("failed to fetch filings for %v (%v): %w\n", company.Name, company.Ticker, err)
+		return fmt.Errorf("failed to fetchDocuments filings for %v (%v): %w\n", company.Name, company.Ticker, err)
 	}
 
 	// Process filings. We only process up to MAX_FILINGS_PER_COMPANY_PER_BATCH
@@ -243,7 +227,7 @@ func processFiling(db *gorm.DB, logger *zap.SugaredLogger, company *models.Compa
 	// Get the filing file from the SEC.
 	originURL, file, err := getFilingFile(filing)
 	if err != nil {
-		return fmt.Errorf("failed to fetch filing file (accession number %v) for %v (%v): %w\n", filing.AccessionNo, company.Name, company.Ticker, err)
+		return fmt.Errorf("failed to fetchDocuments filing file (accession number %v) for %v (%v): %w\n", filing.AccessionNo, company.Name, company.Ticker, err)
 	}
 
 	// Convert the file to text.

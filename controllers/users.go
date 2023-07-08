@@ -1,8 +1,8 @@
 package controllers
 
 import (
-	"cofin/cmd/api"
-	"cofin/cmd/api/middleware"
+	"cofin/api"
+	"cofin/api/middleware"
 	"cofin/core"
 	"cofin/models"
 	"github.com/gin-gonic/gin"
