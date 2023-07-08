@@ -38,8 +38,6 @@ func main() {
 		panic(err)
 	}
 
-	engine.MaxMultipartMemory = 8 << 20
-
 	engine.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "https://"+os.Getenv("UI_DOMAIN"))
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -56,6 +54,7 @@ func main() {
 	healthController := controllers.HealthController{}
 	authController := controllers.AuthController{}
 	usersController := controllers.UsersController{}
+	companiesController := controllers.CompaniesController{}
 
 	generator, err := internal.NewGenerator()
 	if err != nil {
@@ -71,6 +70,7 @@ func main() {
 		healthController:       &healthController,
 		authController:         &authController,
 		usersController:        &usersController,
+		companiesController:    &companiesController,
 		conversationController: &conversationController,
 	}
 

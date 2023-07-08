@@ -2,6 +2,7 @@ package main
 
 import (
 	"cofin/core"
+	"cofin/integrations"
 	"cofin/internal"
 	"cofin/models"
 	"context"
@@ -129,6 +130,23 @@ func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing SECListing, 
 			logger.Errorw(fmt.Errorf("failed to process a filing kind for a company: %v", err.Error()).Error(), "ticker", company.Ticker, "filingKind", filingKind)
 			continue
 		}
+	}
+
+	realStonks := integrations.RealStonks{}
+	marketInformation, err := realStonks.GetMarketData(company.Ticker)
+	if err == nil {
+		company.Currency = marketInformation.Currency
+		company.Price = marketInformation.Price
+		company.Change = marketInformation.Change
+		company.TotalVolume = marketInformation.TotalVolume
+
+		tx := db.Save(company)
+		if tx.Error != nil {
+			logger.Infof("Unable to update market data for %v: %v", listing.Ticker, tx.Error)
+		}
+
+	} else {
+		logger.Infof("Unable to fetch market data for %v", listing.Ticker)
 	}
 
 	return nil
