@@ -1,5 +1,5 @@
-To start, make sure you have a `.env` file following the example in `.env.example`. Then, you can start the API service locally:
-`APP_NAME=api make run`
+`make all`
+`./bin/api`
 
 # API
 
