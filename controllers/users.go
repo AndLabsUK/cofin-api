@@ -1,20 +1,22 @@
 package controllers
 
 import (
-	"cofin/core"
 	"cofin/models"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
-type UsersController struct{}
+type UsersController struct {
+	DB     *gorm.DB
+	Logger *zap.SugaredLogger
+}
 
 func (u UsersController) GetCurrentUser(c *gin.Context) {
-	db, _ := core.GetDB()
-
 	var user models.User
 	userId := CurrentUserId(c)
-	db.First(&user, userId)
+	u.DB.First(&user, userId)
 
-	ResultData(c, user)
+	WriteSuccess(c, user)
 }

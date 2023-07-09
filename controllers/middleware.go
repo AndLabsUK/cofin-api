@@ -3,6 +3,7 @@ package controllers
 import (
 	"cofin/core"
 	"cofin/models"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -24,7 +25,7 @@ func RequireAuth(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusForbidden, ApiResponse{Errors: []string{"accessDenied"}})
+	c.JSON(http.StatusForbidden, ApiResponse{Errors: []error{errors.New("access_denied")}})
 	c.Abort()
 	return
 }

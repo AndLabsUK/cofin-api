@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"cofin/core"
 	"cofin/internal/google_pki"
 	"cofin/models"
 	"crypto/rsa"
@@ -13,10 +12,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-type AuthController struct{}
+type AuthController struct {
+	DB     *gorm.DB
+	Logger *zap.SugaredLogger
+}
 
 func (a AuthController) SignIn(c *gin.Context) {
 	type signInParams struct {
@@ -24,8 +27,8 @@ func (a AuthController) SignIn(c *gin.Context) {
 	}
 
 	var payload signInParams
-	if bindingError := c.BindJSON(&payload); bindingError != nil {
-		ResultError(c, []string{"invalidRequest"})
+	if err := c.BindJSON(&payload); err != nil {
+		WriteBadRequestError(c, []error{err})
 		return
 	}
 
@@ -63,13 +66,13 @@ func (a AuthController) SignIn(c *gin.Context) {
 		return rsaPubKey, nil
 	})
 	if err != nil {
-		ResultError(c, []string{"invalidRequest"})
+		WriteBadRequestError(c, []error{err})
 		return
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok || !token.Valid {
-		ResultError(c, []string{"invalidRequest"})
+		WriteBadRequestError(c, []error{ErrInvalidToken})
 		return
 	}
 
@@ -77,14 +80,9 @@ func (a AuthController) SignIn(c *gin.Context) {
 	name := claims["name"].(string)
 	sub := claims["sub"].(string)
 
-	db, err := core.GetDB()
-	if err != nil {
-		ResultError(c, nil)
-		return
-	}
-
 	var user models.User
-	tx := db.First(&user, "firebase_subject_id = ?", sub)
+	// TODO: rewrite as a transaction.
+	tx := a.DB.First(&user, "firebase_subject_id = ?", sub)
 	if tx.Error != nil {
 		if tx.Error == gorm.ErrRecordNotFound {
 			user = models.User{
@@ -93,13 +91,15 @@ func (a AuthController) SignIn(c *gin.Context) {
 				FirebaseSubjectId: sub,
 			}
 
-			result := db.Create(&user)
+			result := a.DB.Create(&user)
 			if result.Error != nil {
-				ResultError(c, nil)
+				a.Logger.Errorf("Error creating user: %w", result.Error)
+				WriteInternalError(c)
 				return
 			}
 		} else {
-			ResultError(c, nil)
+			a.Logger.Errorf("Error getting user: %w", tx.Error)
+			WriteInternalError(c)
 			return
 		}
 	}
@@ -108,13 +108,13 @@ func (a AuthController) SignIn(c *gin.Context) {
 		UserID: user.ID,
 		Token:  generateRandomString(128),
 	}
-	result := db.Create(&accessToken)
+	result := a.DB.Create(&accessToken)
 	if result.Error != nil {
-		ResultError(c, nil)
+		a.Logger.Errorf("Error creating access token: %w", result.Error)
 		return
 	}
 
-	ResultData(c, accessToken)
+	WriteSuccess(c, accessToken)
 }
 
 func generateRandomString(l int) string {

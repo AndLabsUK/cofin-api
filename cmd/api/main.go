@@ -27,6 +27,7 @@ func main() {
 		&models.Company{},
 		&models.Document{},
 		&models.AccessToken{},
+		&models.Message{},
 	)
 	if err != nil {
 		panic(err)
@@ -68,18 +69,28 @@ func createServer(db *gorm.DB) *gin.Engine {
 		panic(err)
 	}
 
-	conversationController := controllers.ConversationController{
-		DB:        db,
-		Generator: generator,
-		Logger:    logger,
-	}
-
 	router := controllers.Router{
-		HealthController:       &controllers.HealthController{},
-		AuthController:         &controllers.AuthController{},
-		UsersController:        &controllers.UsersController{},
-		CompaniesController:    &controllers.CompaniesController{},
-		ConversationController: &conversationController,
+		AuthController: &controllers.AuthController{
+			DB:     db,
+			Logger: logger.With("controller", "auth"),
+		},
+		HealthController: &controllers.HealthController{
+			DB:     db,
+			Logger: logger.With("controller", "health"),
+		},
+		CompaniesController: &controllers.CompaniesController{
+			DB:     db,
+			Logger: logger.With("controller", "companies"),
+		},
+		ConversationsController: &controllers.ConversationsController{
+			DB:        db,
+			Logger:    logger.With("controller", "conversations"),
+			Generator: generator,
+		},
+		UsersController: &controllers.UsersController{
+			DB:     db,
+			Logger: logger.With("controller", "users"),
+		},
 	}
 
 	router.RegisterRoutes(engine)
