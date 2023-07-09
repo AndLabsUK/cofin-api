@@ -1,10 +1,9 @@
 package controllers
 
 import (
-	"cofin/api"
-	"cofin/api/middleware"
 	"cofin/core"
 	"cofin/models"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -14,8 +13,8 @@ func (u UsersController) GetCurrentUser(c *gin.Context) {
 	db, _ := core.GetDB()
 
 	var user models.User
-	userId := middleware.CurrentUserId(c)
+	userId := CurrentUserId(c)
 	db.First(&user, userId)
 
-	api.ResultData(c, user)
+	ResultData(c, user)
 }

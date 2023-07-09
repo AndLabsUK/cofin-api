@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"cofin/api"
 	"cofin/core"
 	"cofin/integrations"
 	"cofin/models"
@@ -26,7 +25,7 @@ func (a AuthController) SignIn(c *gin.Context) {
 
 	var payload signInParams
 	if bindingError := c.BindJSON(&payload); bindingError != nil {
-		api.ResultError(c, []string{"invalidRequest"})
+		ResultError(c, []string{"invalidRequest"})
 		return
 	}
 
@@ -64,13 +63,13 @@ func (a AuthController) SignIn(c *gin.Context) {
 		return rsaPubKey, nil
 	})
 	if err != nil {
-		api.ResultError(c, []string{"invalidRequest"})
+		ResultError(c, []string{"invalidRequest"})
 		return
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok || !token.Valid {
-		api.ResultError(c, []string{"invalidRequest"})
+		ResultError(c, []string{"invalidRequest"})
 		return
 	}
 
@@ -80,7 +79,7 @@ func (a AuthController) SignIn(c *gin.Context) {
 
 	db, err := core.GetDB()
 	if err != nil {
-		api.ResultError(c, nil)
+		ResultError(c, nil)
 		return
 	}
 
@@ -96,11 +95,11 @@ func (a AuthController) SignIn(c *gin.Context) {
 
 			result := db.Create(&user)
 			if result.Error != nil {
-				api.ResultError(c, nil)
+				ResultError(c, nil)
 				return
 			}
 		} else {
-			api.ResultError(c, nil)
+			ResultError(c, nil)
 			return
 		}
 	}
@@ -111,11 +110,11 @@ func (a AuthController) SignIn(c *gin.Context) {
 	}
 	result := db.Create(&accessToken)
 	if result.Error != nil {
-		api.ResultError(c, nil)
+		ResultError(c, nil)
 		return
 	}
 
-	api.ResultData(c, accessToken)
+	ResultData(c, accessToken)
 }
 
 func generateRandomString(l int) string {
