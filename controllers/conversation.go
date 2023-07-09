@@ -63,7 +63,7 @@ func (convo ConversationController) Respond(c *gin.Context) {
 		return
 	}
 
-	company, documents, err := retriever.GetDocuments(c.Request.Context(), message.Ticker)
+	company, documents, err := retriever.GetDocuments(message.Ticker)
 	if err != nil {
 		convo.Logger.Error(err)
 		api.ResultError(c, nil)

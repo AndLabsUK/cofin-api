@@ -20,7 +20,6 @@ import (
 type AuthController struct{}
 
 func (a AuthController) SignIn(c *gin.Context) {
-
 	type signInParams struct {
 		JWTToken string `json:"jwt_token"`
 	}
