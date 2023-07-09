@@ -1,32 +1,31 @@
 package controllers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
+var (
+	ErrInvalidToken  = errors.New("Invalid token")
+	ErrInternalError = errors.New("Internal error")
+	ErrUnknownTicker = errors.New("Unknown ticker")
+)
+
 type ApiResponse struct {
-	Errors []string `json:"errors,omitempty"`
-	Data   any      `json:"data,omitempty"`
+	Errors []error `json:"errors,omitempty"`
+	Data   any     `json:"data,omitempty"`
 }
 
-func ResultData(c *gin.Context, obj any) {
+func WriteSuccess(c *gin.Context, obj any) {
 	c.JSON(http.StatusOK, ApiResponse{Data: obj})
 }
 
-func ResultSuccess(c *gin.Context) {
-	c.JSON(http.StatusOK, ApiResponse{})
+func WriteBadRequestError(c *gin.Context, errors []error) {
+	c.AbortWithStatusJSON(http.StatusBadRequest, ApiResponse{Errors: errors})
 }
 
-func ResultError(c *gin.Context, errors []string) {
-	if len(errors) > 0 {
-		c.JSON(http.StatusBadRequest, ApiResponse{Errors: errors})
-	} else {
-		c.JSON(http.StatusInternalServerError, ApiResponse{Errors: []string{"unknownError"}})
-	}
-}
-
-func ResultErrorWithData(c *gin.Context, errors []string, obj any) {
-	c.JSON(http.StatusBadRequest, ApiResponse{Errors: errors, Data: obj})
+func WriteInternalError(c *gin.Context) {
+	c.AbortWithStatusJSON(http.StatusInternalServerError, ApiResponse{Errors: []error{ErrInternalError}})
 }

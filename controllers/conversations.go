@@ -3,7 +3,6 @@ package controllers
 import (
 	"cofin/internal/retrieval"
 	"cofin/models"
-	"errors"
 	"strings"
 	"time"
 
@@ -14,18 +13,9 @@ import (
 
 // TODO: log internal errors but don't expose them to the user
 
-type MessageAuthor string
-
-const (
-	// MessageKindInput is a message from the user.
-	User MessageAuthor = "user"
-	// MessageKindOutput is a message from the Artificial Intelligence.
-	AI MessageAuthor = "ai"
-)
-
 // Message describes input or output of a conversation.
 type Message struct {
-	Author MessageAuthor `json:"author" binding:"required"`
+	Author models.MessageAuthor `json:"author" binding:"required"`
 	// Text input from the user.
 	Text string `json:"text" binding:"required"`
 	// Ticker is the copmany ticker. It is the "namespace" of the conversation.
@@ -40,42 +30,44 @@ type Source struct {
 	OriginURL string            `json:"origin_url" binding:"required"`
 }
 
-type ConversationController struct {
+type ConversationsController struct {
 	DB        *gorm.DB
-	Generator *retrieval.Generator
 	Logger    *zap.SugaredLogger
+	Generator *retrieval.Generator
 }
 
 // TODO: clean up response codes, user vs internal errors, logging, naming.
-func (convo ConversationController) Respond(c *gin.Context) {
+func (cc ConversationsController) Respond(c *gin.Context) {
 	message := Message{}
 	err := c.BindJSON(&message)
 	if err != nil {
-		ResultError(c, []string{err.Error()})
+		cc.Logger.Errorf("Error querying companies: %w", err)
+		WriteBadRequestError(c, []error{err})
 		return
 	}
 
-	retriever, err := retrieval.NewRetriever(convo.DB, strings.ToUpper(message.Ticker))
+	retriever, err := retrieval.NewRetriever(cc.DB, strings.ToUpper(message.Ticker))
 	if err != nil {
-		convo.Logger.Error(err)
-		ResultError(c, nil)
+		cc.Logger.Errorf("Error creating retriever: %w", err)
+		WriteInternalError(c)
 		return
 	}
 
 	company, documents, err := retriever.GetDocuments(message.Ticker)
 	if err != nil {
-		convo.Logger.Error(err)
-		ResultError(c, nil)
+		cc.Logger.Errorf("Error getting documents: %w", err)
+		WriteInternalError(c)
 		return
 	}
 
 	if company == nil {
-		ResultError(c, []string{errors.New("Unknown ticker").Error()})
+		WriteBadRequestError(c, []error{ErrUnknownTicker})
 		return
 	}
 
 	if documents == nil {
-		ResultError(c, []string{errors.New("No documents found for the ticker").Error()})
+		cc.Logger.Error("No documents found")
+		WriteInternalError(c)
 		return
 	}
 
@@ -84,8 +76,8 @@ func (convo ConversationController) Respond(c *gin.Context) {
 	for _, document := range documents {
 		chunks, err := retriever.GetSemanticChunks(c.Request.Context(), message.Ticker, document.UUID, message.Text)
 		if err != nil {
-			convo.Logger.Error(err)
-			ResultError(c, nil)
+			cc.Logger.Errorf("Error getting semantic chunks: %w", err)
+			WriteInternalError(c)
 			return
 		}
 
@@ -98,12 +90,12 @@ func (convo ConversationController) Respond(c *gin.Context) {
 		})
 	}
 
-	response, err := convo.Generator.Continue(c.Request.Context(), *company, documents, allChunks, message.Text)
+	response, err := cc.Generator.Continue(c.Request.Context(), *company, documents, allChunks, message.Text)
 	if err != nil {
-		convo.Logger.Error(err)
-		ResultError(c, nil)
+		cc.Logger.Errorf("Error generating AI response: %w", err)
+		WriteInternalError(c)
 		return
 	}
 
-	ResultData(c, Message{Ticker: message.Ticker, Author: AI, Text: response, Sources: sources})
+	WriteSuccess(c, Message{Ticker: message.Ticker, Author: models.AIAuthor, Text: response, Sources: sources})
 }

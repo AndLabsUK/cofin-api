@@ -5,20 +5,19 @@ import (
 )
 
 type Router struct {
-	HealthController       *HealthController
-	AuthController         *AuthController
-	UsersController        *UsersController
-	CompaniesController    *CompaniesController
-	ConversationController *ConversationController
+	HealthController        *HealthController
+	AuthController          *AuthController
+	UsersController         *UsersController
+	CompaniesController     *CompaniesController
+	ConversationsController *ConversationsController
 }
 
 func (r Router) RegisterRoutes(router gin.IRouter) {
-
 	//
 	// Anonymous requests
 	//
 	router.GET("/health", r.HealthController.Status)
-	router.POST("/conversation", r.ConversationController.Respond)
+	router.POST("/conversations", r.ConversationsController.Respond)
 
 	router.GET("/companies", r.CompaniesController.GetCompanies)
 	router.POST("/auth", r.AuthController.SignIn)

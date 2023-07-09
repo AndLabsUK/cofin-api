@@ -21,6 +21,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const MAX_FILINGS_PER_COMPANY_PER_BATCH = 20
+
 func main() {
 	godotenv.Load()
 
@@ -36,29 +38,28 @@ func main() {
 		&models.Company{},
 		&models.Document{},
 		&models.AccessToken{},
+		&models.Message{},
 	)
 	if err != nil {
 		panic(err)
 	}
 
-	fetcher, err := NewDocumentFetcher(db)
+	fetcher, err := newDocumentFetcher(db)
 	if err != nil {
 		panic(err)
 	}
 
-	fetcher.Run()
+	fetcher.run()
 }
 
-const MAX_FILINGS_PER_COMPANY_PER_BATCH = 20
-
-type DocumentFetcher struct {
+type documentFetcher struct {
 	db       *gorm.DB
 	embedder *embeddings.OpenAI
 	splitter *retrieval.Splitter
 	logger   *zap.SugaredLogger
 }
 
-func NewDocumentFetcher(db *gorm.DB) (*DocumentFetcher, error) {
+func newDocumentFetcher(db *gorm.DB) (*documentFetcher, error) {
 	embedder, err := retrieval.NewEmbedder()
 	if err != nil {
 		return nil, err
@@ -66,15 +67,15 @@ func NewDocumentFetcher(db *gorm.DB) (*DocumentFetcher, error) {
 
 	splitter, err := retrieval.NewSplitter(1000, 100)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
 	logger, err := core.NewLogger()
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
-	return &DocumentFetcher{
+	return &documentFetcher{
 		db:       db,
 		embedder: embedder,
 		splitter: splitter,
@@ -82,7 +83,7 @@ func NewDocumentFetcher(db *gorm.DB) (*DocumentFetcher, error) {
 	}, nil
 }
 
-func (f *DocumentFetcher) Run() {
+func (f *documentFetcher) run() {
 	logger := f.logger
 	embedder := f.embedder
 	splitter := f.splitter
@@ -102,7 +103,7 @@ func fetchDocuments(db *gorm.DB, logger *zap.SugaredLogger, embedder *embeddings
 		// Get listings for the exchange.
 		listings, err := sec_api.GetTradedCompanies(exchange)
 		if err != nil {
-			logger.Errorw(fmt.Errorf("failed to get companies traded on an exchange: %v", err.Error()).Error(), "exchange", exchange)
+			logger.Errorw(fmt.Errorf("failed to get companies traded on an exchange: %v", err).Error(), "exchange", exchange)
 			continue
 		}
 
@@ -118,7 +119,7 @@ func fetchDocuments(db *gorm.DB, logger *zap.SugaredLogger, embedder *embeddings
 			// store them.
 			err := processListing(db, logger, listing, embedder, splitter)
 			if err != nil {
-				logger.Errorw(fmt.Errorf("failed to process a listing: %v", err.Error()).Error(), "ticker", listing.Ticker)
+				logger.Errorw(fmt.Errorf("failed to process a listing: %v", err).Error(), "ticker", listing.Ticker)
 				continue
 			}
 		}
@@ -165,7 +166,7 @@ func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing sec_api.List
 	for _, filingKind := range []models.SourceKind{models.K10, models.Q10} {
 		logger.Infof("Processing filing kind: %v", filingKind)
 		if err := processFilingKind(db, logger, company, splitter, store, filingKind); err != nil {
-			logger.Errorw(fmt.Errorf("failed to process a filing kind for a company: %v", err.Error()).Error(), "ticker", company.Ticker, "filingKind", filingKind)
+			logger.Errorw(fmt.Errorf("failed to process a filing kind for a company: %v", err).Error(), "ticker", company.Ticker, "filingKind", filingKind)
 			continue
 		}
 	}

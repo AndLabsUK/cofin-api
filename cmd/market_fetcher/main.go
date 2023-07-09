@@ -25,12 +25,13 @@ func main() {
 		&models.Company{},
 		&models.Document{},
 		&models.AccessToken{},
+		&models.Message{},
 	)
 	if err != nil {
 		panic(err)
 	}
 
-	fetcher, err := NewMarketFetcher(db)
+	fetcher, err := newMarketFetcher(db)
 	if err != nil {
 		panic(err)
 	}
@@ -38,24 +39,24 @@ func main() {
 	fetcher.Run()
 }
 
-type MarketFetcher struct {
+type marketFetcher struct {
 	db     *gorm.DB
 	logger *zap.SugaredLogger
 }
 
-func NewMarketFetcher(db *gorm.DB) (*MarketFetcher, error) {
+func newMarketFetcher(db *gorm.DB) (*marketFetcher, error) {
 	logger, err := core.NewLogger()
 	if err != nil {
 		return nil, err
 	}
 
-	return &MarketFetcher{
+	return &marketFetcher{
 		db:     db,
 		logger: logger,
 	}, nil
 }
 
-func (f *MarketFetcher) Run() {
+func (f *marketFetcher) Run() {
 	logger := f.logger
 	db := f.db
 

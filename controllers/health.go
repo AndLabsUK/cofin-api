@@ -1,27 +1,23 @@
 package controllers
 
 import (
-	"cofin/core"
-
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
-type HealthController struct{}
+type HealthController struct {
+	DB     *gorm.DB
+	Logger *zap.SugaredLogger
+}
 
 func (h HealthController) Status(c *gin.Context) {
-	db, err := core.GetDB()
-
+	err := h.DB.Raw(`SELECT 1`).Row().Err()
 	if err != nil {
-		ResultError(c, nil)
+		h.Logger.Errorf("Error checking database health: %v", err)
+		WriteInternalError(c)
 		return
 	}
 
-	err = db.Raw(`SELECT 1`).Row().Err()
-
-	if err != nil {
-		ResultError(c, nil)
-		return
-	}
-
-	ResultSuccess(c)
+	WriteSuccess(c, nil)
 }
