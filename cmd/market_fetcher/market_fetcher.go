@@ -1,9 +1,10 @@
-package fetcher
+package main
 
 import (
-	"cofin/integrations"
-	"cofin/internal"
+	"cofin/core"
+	"cofin/internal/real_stonks"
 	"cofin/models"
+
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -14,7 +15,7 @@ type MarketFetcher struct {
 }
 
 func NewMarketFetcher(db *gorm.DB) (*MarketFetcher, error) {
-	logger, err := internal.NewLogger()
+	logger, err := core.NewLogger()
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +46,7 @@ func fetchMarket(db *gorm.DB, logger *zap.SugaredLogger) {
 	for _, company := range companies {
 		logger.Infof("Fetching data for %v", company.Ticker)
 
-		realStonks := integrations.RealStonks{}
+		realStonks := real_stonks.RealStonks{}
 		marketInformation, err := realStonks.GetMarketData(company.Ticker)
 		if err == nil {
 			company.Currency = marketInformation.Currency

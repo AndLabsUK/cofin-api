@@ -3,8 +3,7 @@ package main
 import (
 	"cofin/controllers"
 	"cofin/core"
-	"cofin/fetcher"
-	"cofin/internal"
+	"cofin/internal/retrieval"
 	"cofin/models"
 	"os"
 
@@ -33,34 +32,8 @@ func main() {
 		panic(err)
 	}
 
-	// set up commands
-
-	command := ""
-	if len(os.Args) >= 2 {
-		command = os.Args[1]
-	}
-
-	switch command {
-	case "fetch_documents":
-		f, err := fetcher.NewDocumentFetcher(db)
-		if err != nil {
-			panic(err)
-		}
-
-		f.Run()
-		return
-	case "fetch_market":
-		f, err := fetcher.NewMarketFetcher(db)
-		if err != nil {
-			panic(err)
-		}
-
-		f.Run()
-		return
-	default:
-		server := createServer(db)
-		server.Run()
-	}
+	server := createServer(db)
+	server.Run()
 }
 
 func createServer(db *gorm.DB) *gin.Engine {
@@ -85,12 +58,12 @@ func createServer(db *gorm.DB) *gin.Engine {
 		c.Next()
 	})
 
-	generator, err := internal.NewGenerator()
+	generator, err := retrieval.NewGenerator()
 	if err != nil {
 		panic(err)
 	}
 
-	logger, err := internal.NewLogger()
+	logger, err := core.NewLogger()
 	if err != nil {
 		panic(err)
 	}
