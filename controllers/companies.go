@@ -1,12 +1,12 @@
 package controllers
 
 import (
-	"cofin/api"
 	"cofin/core"
 	"cofin/models"
+	"strconv"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-	"strconv"
 )
 
 type CompaniesController struct{}
@@ -14,13 +14,13 @@ type CompaniesController struct{}
 func (cc CompaniesController) GetCompanies(c *gin.Context) {
 	limit, err := strconv.Atoi(c.Query("limit"))
 	if err != nil {
-		api.ResultError(c, []string{"invalidRequest"})
+		ResultError(c, []string{"invalidRequest"})
 		return
 	}
 
 	offset, err := strconv.Atoi(c.Query("offset"))
 	if err != nil {
-		api.ResultError(c, []string{"invalidRequest"})
+		ResultError(c, []string{"invalidRequest"})
 		return
 	}
 
@@ -38,8 +38,8 @@ func (cc CompaniesController) GetCompanies(c *gin.Context) {
 	}
 
 	if result.Error != nil {
-		api.ResultError(c, nil)
+		ResultError(c, nil)
 	}
 
-	api.ResultData(c, companies)
+	ResultData(c, companies)
 }

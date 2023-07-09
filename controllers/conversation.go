@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"cofin/api"
 	"cofin/internal"
 	"cofin/models"
 	"errors"
@@ -52,31 +51,31 @@ func (convo ConversationController) Respond(c *gin.Context) {
 	message := Message{}
 	err := c.BindJSON(&message)
 	if err != nil {
-		api.ResultError(c, []string{err.Error()})
+		ResultError(c, []string{err.Error()})
 		return
 	}
 
 	retriever, err := internal.NewRetriever(convo.DB, strings.ToUpper(message.Ticker))
 	if err != nil {
 		convo.Logger.Error(err)
-		api.ResultError(c, nil)
+		ResultError(c, nil)
 		return
 	}
 
 	company, documents, err := retriever.GetDocuments(message.Ticker)
 	if err != nil {
 		convo.Logger.Error(err)
-		api.ResultError(c, nil)
+		ResultError(c, nil)
 		return
 	}
 
 	if company == nil {
-		api.ResultError(c, []string{errors.New("Unknown ticker").Error()})
+		ResultError(c, []string{errors.New("Unknown ticker").Error()})
 		return
 	}
 
 	if documents == nil {
-		api.ResultError(c, []string{errors.New("No documents found for the ticker").Error()})
+		ResultError(c, []string{errors.New("No documents found for the ticker").Error()})
 		return
 	}
 
@@ -86,7 +85,7 @@ func (convo ConversationController) Respond(c *gin.Context) {
 		chunks, err := retriever.GetSemanticChunks(c.Request.Context(), message.Ticker, document.UUID, message.Text)
 		if err != nil {
 			convo.Logger.Error(err)
-			api.ResultError(c, nil)
+			ResultError(c, nil)
 			return
 		}
 
@@ -102,9 +101,9 @@ func (convo ConversationController) Respond(c *gin.Context) {
 	response, err := convo.Generator.Continue(c.Request.Context(), *company, documents, allChunks, message.Text)
 	if err != nil {
 		convo.Logger.Error(err)
-		api.ResultError(c, nil)
+		ResultError(c, nil)
 		return
 	}
 
-	api.ResultData(c, Message{Ticker: message.Ticker, Author: AI, Text: response, Sources: sources})
+	ResultData(c, Message{Ticker: message.Ticker, Author: AI, Text: response, Sources: sources})
 }
