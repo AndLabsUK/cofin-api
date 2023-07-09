@@ -57,11 +57,12 @@ func main() {
 		f.Run()
 		return
 	default:
-		runServer(db)
+		server := createServer(db)
+		server.Run()
 	}
 }
 
-func runServer(db *gorm.DB) {
+func createServer(db *gorm.DB) *gin.Engine {
 	// set up http server
 	engine := gin.Default()
 	err := engine.SetTrustedProxies(nil)
@@ -79,6 +80,7 @@ func runServer(db *gorm.DB) {
 			c.AbortWithStatus(204)
 			return
 		}
+
 		c.Next()
 	})
 
@@ -92,9 +94,15 @@ func runServer(db *gorm.DB) {
 		panic(err)
 	}
 
+	logger, err := internal.NewLogger()
+	if err != nil {
+		panic(err)
+	}
+
 	conversationController := controllers.ConversationController{
 		DB:        db,
 		Generator: generator,
+		Logger:    logger,
 	}
 
 	router := Router{
@@ -106,9 +114,5 @@ func runServer(db *gorm.DB) {
 	}
 
 	router.RegisterRoutes(engine)
-
-	err = engine.Run()
-	if err != nil {
-		return
-	}
+	return engine
 }

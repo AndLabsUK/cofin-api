@@ -41,7 +41,7 @@ func NewRetriever(db *gorm.DB, ticker string) (*Retriever, error) {
 // ticker. The ability to customise what documents to use will come in the paid
 // plan as we build up functionality. Ideally, we should be recognising what
 // period to retrieve documents for based on free-form user input.
-func (r *Retriever) GetDocuments(ctx context.Context, ticker string) (*models.Company, []models.Document, error) {
+func (r *Retriever) GetDocuments(ticker string) (*models.Company, []models.Document, error) {
 	company, err := models.GetCompany(r.db, ticker)
 	if err != nil {
 		return nil, nil, err
