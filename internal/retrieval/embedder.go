@@ -1,4 +1,4 @@
-package internal
+package retrieval
 
 import "github.com/tmc/langchaingo/embeddings"
 

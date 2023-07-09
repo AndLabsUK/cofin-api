@@ -1,4 +1,4 @@
-package fetcher
+package sec_api
 
 import (
 	"bytes"
@@ -15,12 +15,20 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 )
 
-// The list of exchanges we fetchDocuments companies from. London Stock Exchange WHEN?!
-var stockExchanges = []string{"nyse", "nasdaq"}
+type Exchange string
+
+const (
+	NYSE   Exchange = "nyse"
+	NASDAQ Exchange = "nasdaq"
+)
+
+// The list of exchanges we fetchDocuments companies from. London Stock Exchange
+// WHEN?!
+var StockExchanges = []Exchange{NYSE, NASDAQ}
 
 // This is the response from the SEC API when we request a list of companies
 // traded on an exchange.
-type SECListing struct {
+type Listing struct {
 	Name         string `json:"name,omitempty"`
 	Ticker       string `json:"ticker,omitempty"`
 	CIK          string `json:"cik,omitempty"`
@@ -96,7 +104,7 @@ type Entity struct {
 }
 
 // Get companies traded on an exchange.
-func getTradedCompanies(exchange string) (listings []SECListing, err error) {
+func GetTradedCompanies(exchange Exchange) (listings []Listing, err error) {
 	const exchangeURLTemplate = "https://api.sec-api.io/mapping/exchange/%v"
 	req, err := http.NewRequest("GET", fmt.Sprintf(exchangeURLTemplate, exchange), nil)
 	if err != nil {
@@ -126,7 +134,7 @@ func getTradedCompanies(exchange string) (listings []SECListing, err error) {
 
 // Get the filing file from the SEC. Return the origin URL on the SEC website,
 // the file bytes, and an error, if there is one.
-func getFilingFile(filing Filing) (originURL string, file []byte, err error) {
+func GetFilingFile(filing Filing) (originURL string, file []byte, err error) {
 	// Template for paths to the original files on the SEC website.
 	const secFileURLTemplate = "https://www.sec.gov/Archives/edgar/data/%v/%v/%v"
 	// Template for downloadable files in the paid SEC API archive.
@@ -158,7 +166,7 @@ func getFilingFile(filing Filing) (originURL string, file []byte, err error) {
 	return originURL, f, nil
 }
 
-func getFilingsSince(cik string, kind models.SourceKind, since time.Time) (filings []Filing, err error) {
+func GetFilingsSince(key string, cik string, kind models.SourceKind, since time.Time, limit int) (filings []Filing, err error) {
 	timeStart := since.Format(time.RFC3339)
 	timeEnd := time.Now().Format(time.RFC3339)
 
@@ -173,14 +181,14 @@ func getFilingsSince(cik string, kind models.SourceKind, since time.Time) (filin
 			"from": "0",
 			"size": "%v",
 			"sort": [{ "filedAt": { "order": "asc" } }]
-		}`, kind, timeStart, timeEnd, cik, MAX_FILINGS_PER_COMPANY_PER_BATCH),
+		}`, kind, timeStart, timeEnd, cik, limit),
 	)
 
 	req, err := http.NewRequest("POST", "https://api.sec-api.io", bytes.NewBuffer(jsonStr))
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", os.Getenv("SEC_API_KEY"))
+	req.Header.Set("Authorization", key)
 	req.Header.Set("Content-Type", "application/json")
 
 	client := retryablehttp.NewClient()

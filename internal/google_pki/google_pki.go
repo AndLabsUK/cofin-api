@@ -1,4 +1,4 @@
-package integrations
+package google_pki
 
 import (
 	"encoding/json"
@@ -19,11 +19,14 @@ func (gpki GooglePKI) GetPublicKeys() ([]GooglePublicKey, error) {
 
 	res, _ := http.DefaultClient.Do(req)
 
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
 	defer res.Body.Close()
-	body, _ := io.ReadAll(res.Body)
 
 	var d *dtoPayload
-	err := json.Unmarshal(body, &d)
+	err = json.Unmarshal(body, &d)
 	if err != nil {
 		return nil, err
 	}

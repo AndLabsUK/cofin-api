@@ -1,11 +1,14 @@
-package fetcher
+package main
 
 import (
-	"cofin/integrations"
-	"cofin/internal"
+	"cofin/core"
+	"cofin/internal/real_stonks"
+	"cofin/internal/retrieval"
+	"cofin/internal/sec_api"
 	"cofin/models"
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -22,22 +25,22 @@ const MAX_FILINGS_PER_COMPANY_PER_BATCH = 20
 type DocumentFetcher struct {
 	db       *gorm.DB
 	embedder *embeddings.OpenAI
-	splitter *Splitter
+	splitter *retrieval.Splitter
 	logger   *zap.SugaredLogger
 }
 
 func NewDocumentFetcher(db *gorm.DB) (*DocumentFetcher, error) {
-	embedder, err := internal.NewEmbedder()
+	embedder, err := retrieval.NewEmbedder()
 	if err != nil {
 		return nil, err
 	}
 
-	splitter, err := NewSplitter(1000, 100)
+	splitter, err := retrieval.NewSplitter(1000, 100)
 	if err != nil {
 		return nil, err
 	}
 
-	logger, err := internal.NewLogger()
+	logger, err := core.NewLogger()
 	if err != nil {
 		return nil, err
 	}
@@ -60,15 +63,15 @@ func (f *DocumentFetcher) Run() {
 }
 
 // TODO: check ctx for cancellation.
-func fetchDocuments(db *gorm.DB, logger *zap.SugaredLogger, embedder *embeddings.OpenAI, splitter *Splitter) {
+func fetchDocuments(db *gorm.DB, logger *zap.SugaredLogger, embedder *embeddings.OpenAI, splitter *retrieval.Splitter) {
 	logger.Info("Running fetching job...")
 
 	// Go over all stock exchanges.
-	for _, exchange := range stockExchanges {
+	for _, exchange := range sec_api.StockExchanges {
 		logger.Infof("Fetching exchange: %v", exchange)
 
 		// Get listings for the exchange.
-		listings, err := getTradedCompanies(exchange)
+		listings, err := sec_api.GetTradedCompanies(exchange)
 		if err != nil {
 			logger.Errorw(fmt.Errorf("failed to get companies traded on an exchange: %v", err.Error()).Error(), "exchange", exchange)
 			continue
@@ -95,7 +98,7 @@ func fetchDocuments(db *gorm.DB, logger *zap.SugaredLogger, embedder *embeddings
 
 // processListing creates a company if it doesn't exist, fetches documents, and
 // stores them.
-func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing SECListing, embedder *embeddings.OpenAI, splitter *Splitter) error {
+func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing sec_api.Listing, embedder *embeddings.OpenAI, splitter *retrieval.Splitter) error {
 	// Create or get a company in a transaction.
 	var company *models.Company
 	err := db.Transaction(func(tx *gorm.DB) (err error) {
@@ -118,7 +121,7 @@ func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing SECListing, 
 	}
 
 	// Initialize the vector store.
-	store, err := internal.NewPinecone(context.Background(), embedder, company.Ticker)
+	store, err := retrieval.NewPinecone(context.Background(), embedder, company.Ticker)
 	if err != nil {
 		panic(err)
 	}
@@ -138,7 +141,7 @@ func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing SECListing, 
 		}
 	}
 
-	realStonks := integrations.RealStonks{}
+	realStonks := real_stonks.RealStonks{}
 	marketInformation, err := realStonks.GetMarketData(company.Ticker)
 	if err == nil {
 		company.Currency = marketInformation.Currency
@@ -160,7 +163,7 @@ func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing SECListing, 
 
 // processFilingKind fetches filings of a particular kind for a company,
 // processes and stores them.
-func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.Company, splitter *Splitter, store vectorstores.VectorStore, filingKind models.SourceKind) error {
+func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.Company, splitter *retrieval.Splitter, store vectorstores.VectorStore, filingKind models.SourceKind) error {
 	// Get the most recent document of the kind for the company.
 	document, err := models.GetMostRecentCompanyDocumentOfKind(db, company.ID, filingKind)
 	if err != nil {
@@ -179,7 +182,7 @@ func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.C
 	}
 
 	// Get filings since the last filed time.
-	filings, err := getFilingsSince(company.CIK, filingKind, lastFiledAt)
+	filings, err := sec_api.GetFilingsSince(os.Getenv("SEC_API_KEY"), company.CIK, filingKind, lastFiledAt, MAX_FILINGS_PER_COMPANY_PER_BATCH)
 	if err != nil {
 		return fmt.Errorf("failed to fetchDocuments filings for %v (%v): %w\n", company.Name, company.Ticker, err)
 	}
@@ -223,9 +226,9 @@ func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.C
 }
 
 // processFiling processes a filing and stores it.
-func processFiling(db *gorm.DB, logger *zap.SugaredLogger, company *models.Company, splitter *Splitter, store vectorstores.VectorStore, filingKind models.SourceKind, filing Filing) error {
+func processFiling(db *gorm.DB, logger *zap.SugaredLogger, company *models.Company, splitter *retrieval.Splitter, store vectorstores.VectorStore, filingKind models.SourceKind, filing sec_api.Filing) error {
 	// Get the filing file from the SEC.
-	originURL, file, err := getFilingFile(filing)
+	originURL, file, err := sec_api.GetFilingFile(filing)
 	if err != nil {
 		return fmt.Errorf("failed to fetchDocuments filing file (accession number %v) for %v (%v): %w\n", filing.AccessionNo, company.Name, company.Ticker, err)
 	}
@@ -274,7 +277,7 @@ func processFiling(db *gorm.DB, logger *zap.SugaredLogger, company *models.Compa
 		// Store chunks in the vector store. In the future, we might want to store
 		// chunks in the SQL DB. This will largely depend on our supportability and
 		// debugging needs.
-		err = internal.StoreChunks(store, document.UUID, chunks)
+		err = retrieval.StoreChunks(store, document.UUID, chunks)
 		if err != nil {
 			return fmt.Errorf("failed to store chunks (accession number %v) for %v (%v): %w\n", filing.AccessionNo, company.Name, company.Ticker, err)
 		}

@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"cofin/internal"
+	"cofin/internal/retrieval"
 	"cofin/models"
 	"errors"
 	"strings"
@@ -42,7 +42,7 @@ type Source struct {
 
 type ConversationController struct {
 	DB        *gorm.DB
-	Generator *internal.Generator
+	Generator *retrieval.Generator
 	Logger    *zap.SugaredLogger
 }
 
@@ -55,7 +55,7 @@ func (convo ConversationController) Respond(c *gin.Context) {
 		return
 	}
 
-	retriever, err := internal.NewRetriever(convo.DB, strings.ToUpper(message.Ticker))
+	retriever, err := retrieval.NewRetriever(convo.DB, strings.ToUpper(message.Ticker))
 	if err != nil {
 		convo.Logger.Error(err)
 		ResultError(c, nil)

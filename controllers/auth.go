@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"cofin/core"
-	"cofin/integrations"
+	"cofin/internal/google_pki"
 	"cofin/models"
 	"crypto/rsa"
 	"encoding/base64"
@@ -36,7 +36,7 @@ func (a AuthController) SignIn(c *gin.Context) {
 
 		kid := token.Header["kid"].(string)
 
-		googlePki := integrations.GooglePKI{}
+		googlePki := google_pki.GooglePKI{}
 		key, err := googlePki.GetPublicKeyForKid(kid)
 		if err != nil {
 			return nil, err
