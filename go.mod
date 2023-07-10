@@ -1,3 +1,4 @@
+// +heroku install ./cmd/...
 module cofin
 
 go 1.20
