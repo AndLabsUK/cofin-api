@@ -21,6 +21,8 @@ type Conversation struct {
 
 // Message describes input or output of a conversation.
 type Message struct {
+	ID uint `json:"id,omitempty"`
+
 	Author models.MessageAuthor `json:"author" binding:"required"`
 	// Text input from the user.
 	Text      string          `json:"text" binding:"required"`
@@ -185,6 +187,7 @@ func (cc ConversationsController) GetConversation(c *gin.Context) {
 		}
 
 		retrievedMessages = append(retrievedMessages, Message{
+			ID:        message.ID,
 			Author:    message.Author,
 			Text:      message.Text,
 			Sources:   annotation.Sources,
