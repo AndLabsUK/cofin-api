@@ -36,5 +36,5 @@ func RespondCustomStatusErr(c *gin.Context, status int, errors []error) {
 	for i, err := range errors {
 		errStrings[i] = err.Error()
 	}
-	c.AbortWithStatusJSON(http.StatusBadRequest, apiResponse{Errors: errStrings})
+	c.AbortWithStatusJSON(status, apiResponse{Errors: errStrings})
 }
