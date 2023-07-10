@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"cofin/internal/google_pki"
+	"cofin/internal/stripe_api"
 	"cofin/models"
 	"crypto/rsa"
 	"encoding/base64"
@@ -106,8 +107,8 @@ func (a AuthController) SignIn(c *gin.Context) {
 		}
 	}
 
-	stripe := integrations.Stripe{}
-	go stripe.CreateCustomer(&user, db)
+	stripe := stripe_api.StripeAPI{}
+	go stripe.CreateCustomer(&user, a.DB)
 
 	accessToken := models.AccessToken{
 		UserID: user.ID,
