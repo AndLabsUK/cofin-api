@@ -14,6 +14,26 @@ type CompaniesController struct {
 	Logger *zap.SugaredLogger
 }
 
+func (cc CompaniesController) GetCompany(c *gin.Context) {
+	ticker := c.Params.ByName("ticker")
+
+	var company models.Company
+	result := cc.DB.Where("ticker = ?", ticker).First(&company)
+
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			RespondBadRequestErr(c, []error{result.Error})
+			return
+		}
+
+		cc.Logger.Errorf("Error querying company: %w", result.Error)
+		RespondInternalErr(c)
+		return
+	}
+
+	RespondOK(c, company)
+}
+
 func (cc CompaniesController) GetCompanies(c *gin.Context) {
 	limit, err := strconv.Atoi(c.Query("limit"))
 	if err != nil {
