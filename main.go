@@ -88,6 +88,7 @@ func createServer(db *gorm.DB) *gin.Engine {
 	authController := controllers.AuthController{}
 	usersController := controllers.UsersController{}
 	companiesController := controllers.CompaniesController{}
+	paymentsController := controllers.PaymentsController{}
 
 	generator, err := internal.NewGenerator()
 	if err != nil {
@@ -110,6 +111,7 @@ func createServer(db *gorm.DB) *gin.Engine {
 		authController:         &authController,
 		usersController:        &usersController,
 		companiesController:    &companiesController,
+		paymentsController:     &paymentsController,
 		conversationController: &conversationController,
 	}
 

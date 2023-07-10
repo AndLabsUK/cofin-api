@@ -92,6 +92,7 @@ func (a AuthController) SignIn(c *gin.Context) {
 				Email:             email,
 				FullName:          name,
 				FirebaseSubjectId: sub,
+				IsSubscribed:      false,
 			}
 
 			result := db.Create(&user)
@@ -99,11 +100,15 @@ func (a AuthController) SignIn(c *gin.Context) {
 				api.ResultError(c, nil)
 				return
 			}
+
 		} else {
 			api.ResultError(c, nil)
 			return
 		}
 	}
+
+	stripe := integrations.Stripe{}
+	go stripe.CreateCustomer(&user, db)
 
 	accessToken := models.AccessToken{
 		UserID: user.ID,
