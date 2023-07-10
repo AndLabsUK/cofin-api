@@ -91,6 +91,10 @@ func createServer(db *gorm.DB) *gin.Engine {
 			DB:     db,
 			Logger: logger.With("controller", "users"),
 		},
+		PaymentsController: &controllers.PaymentsController{
+			DB:     db,
+			Logger: logger.With("controller", "payments"),
+		},
 	}
 
 	router.RegisterRoutes(engine)

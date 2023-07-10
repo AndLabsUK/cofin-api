@@ -13,19 +13,19 @@ var (
 	ErrUnknownTicker = errors.New("Unknown ticker")
 )
 
-type ApiResponse struct {
+type apiResponse struct {
 	Errors []error `json:"errors,omitempty"`
 	Data   any     `json:"data,omitempty"`
 }
 
-func WriteSuccess(c *gin.Context, obj any) {
-	c.JSON(http.StatusOK, ApiResponse{Data: obj})
+func RespondOK(c *gin.Context, obj any) {
+	c.JSON(http.StatusOK, apiResponse{Data: obj})
 }
 
-func WriteBadRequestError(c *gin.Context, errors []error) {
-	c.AbortWithStatusJSON(http.StatusBadRequest, ApiResponse{Errors: errors})
+func RespondBadRequestErr(c *gin.Context, errors []error) {
+	c.AbortWithStatusJSON(http.StatusBadRequest, apiResponse{Errors: errors})
 }
 
-func WriteInternalError(c *gin.Context) {
-	c.AbortWithStatusJSON(http.StatusInternalServerError, ApiResponse{Errors: []error{ErrInternalError}})
+func RespondInternalErr(c *gin.Context) {
+	c.AbortWithStatusJSON(http.StatusInternalServerError, apiResponse{Errors: []error{ErrInternalError}})
 }

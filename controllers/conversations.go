@@ -42,32 +42,32 @@ func (cc ConversationsController) Respond(c *gin.Context) {
 	err := c.BindJSON(&message)
 	if err != nil {
 		cc.Logger.Errorf("Error querying companies: %w", err)
-		WriteBadRequestError(c, []error{err})
+		RespondBadRequestErr(c, []error{err})
 		return
 	}
 
 	retriever, err := retrieval.NewRetriever(cc.DB, strings.ToUpper(message.Ticker))
 	if err != nil {
 		cc.Logger.Errorf("Error creating retriever: %w", err)
-		WriteInternalError(c)
+		RespondInternalErr(c)
 		return
 	}
 
 	company, documents, err := retriever.GetDocuments(message.Ticker)
 	if err != nil {
 		cc.Logger.Errorf("Error getting documents: %w", err)
-		WriteInternalError(c)
+		RespondInternalErr(c)
 		return
 	}
 
 	if company == nil {
-		WriteBadRequestError(c, []error{ErrUnknownTicker})
+		RespondBadRequestErr(c, []error{ErrUnknownTicker})
 		return
 	}
 
 	if documents == nil {
 		cc.Logger.Error("No documents found")
-		WriteInternalError(c)
+		RespondInternalErr(c)
 		return
 	}
 
@@ -77,7 +77,7 @@ func (cc ConversationsController) Respond(c *gin.Context) {
 		chunks, err := retriever.GetSemanticChunks(c.Request.Context(), message.Ticker, document.UUID, message.Text)
 		if err != nil {
 			cc.Logger.Errorf("Error getting semantic chunks: %w", err)
-			WriteInternalError(c)
+			RespondInternalErr(c)
 			return
 		}
 
@@ -93,9 +93,9 @@ func (cc ConversationsController) Respond(c *gin.Context) {
 	response, err := cc.Generator.Continue(c.Request.Context(), *company, documents, allChunks, message.Text)
 	if err != nil {
 		cc.Logger.Errorf("Error generating AI response: %w", err)
-		WriteInternalError(c)
+		RespondInternalErr(c)
 		return
 	}
 
-	WriteSuccess(c, Message{Ticker: message.Ticker, Author: models.AIAuthor, Text: response, Sources: sources})
+	RespondOK(c, Message{Ticker: message.Ticker, Author: models.AIAuthor, Text: response, Sources: sources})
 }

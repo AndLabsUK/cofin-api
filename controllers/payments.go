@@ -1,18 +1,21 @@
 package controllers
 
 import (
-	"cofin/api"
-	"cofin/api/middleware"
-	"cofin/integrations"
+	"cofin/internal/stripe_api"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
-type PaymentsController struct{}
+type PaymentsController struct {
+	DB     *gorm.DB
+	Logger *zap.SugaredLogger
+}
 
 func (p PaymentsController) GetPrices(c *gin.Context) {
-	stripe := integrations.Stripe{}
+	stripe := stripe_api.StripeAPI{}
 	prices := stripe.GetPrices()
-	api.ResultData(c, prices)
+	RespondOK(c, prices)
 }
 
 func (p PaymentsController) Checkout(c *gin.Context) {
@@ -23,18 +26,18 @@ func (p PaymentsController) Checkout(c *gin.Context) {
 	var payload checkoutParams
 
 	if err := c.BindJSON(&payload); err != nil {
-		api.ResultError(c, []string{"invalid_request"})
+		RespondBadRequestErr(c, []error{err})
 		return
 	}
 
-	user := middleware.CurrentUser(c)
+	user := CurrentUser(c)
 
-	stripe := integrations.Stripe{}
+	stripe := stripe_api.StripeAPI{}
 	checkoutUrl, err := stripe.CreateCheckout(user, &payload.StripePriceId)
 	if err != nil {
-		api.ResultError(c, []string{"invalid_request"})
+		RespondBadRequestErr(c, []error{err})
 		return
 	}
 
-	api.ResultData(c, checkoutUrl)
+	RespondOK(c, checkoutUrl)
 }

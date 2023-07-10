@@ -18,5 +18,5 @@ func (u UsersController) GetCurrentUser(c *gin.Context) {
 	userId := CurrentUserId(c)
 	u.DB.First(&user, userId)
 
-	WriteSuccess(c, user)
+	RespondOK(c, user)
 }

@@ -1,4 +1,4 @@
-package integrations
+package stripe_api
 
 import (
 	"cofin/models"
@@ -11,9 +11,9 @@ import (
 	"os"
 )
 
-type Stripe struct{}
+type StripeAPI struct{}
 
-func (s Stripe) CreateCustomer(user *models.User, db *gorm.DB) {
+func (s StripeAPI) CreateCustomer(user *models.User, db *gorm.DB) {
 	stripe.Key = os.Getenv("STRIPE_API_KEY")
 
 	if user.StripeCustomerId != "" {
@@ -39,7 +39,7 @@ func (s Stripe) CreateCustomer(user *models.User, db *gorm.DB) {
 	}
 }
 
-func (s Stripe) GetPrices() []*stripe.Price {
+func (s StripeAPI) GetPrices() []*stripe.Price {
 	stripe.Key = os.Getenv("STRIPE_API_KEY")
 
 	productId := os.Getenv("STRIPE_PRODUCT_ID")
@@ -58,11 +58,11 @@ func (s Stripe) GetPrices() []*stripe.Price {
 	return stripePrices
 }
 
-func (s Stripe) CreateCheckout(user *models.User, priceId *string) (*string, error) {
+func (s StripeAPI) CreateCheckout(user *models.User, priceId *string) (*string, error) {
 	stripe.Key = os.Getenv("STRIPE_API_KEY")
 
 	if len(user.StripeCustomerId) == 0 {
-		return nil, errors.New("user is not registered on Stripe")
+		return nil, errors.New("user is not registered on StripeAPI")
 	}
 
 	stripePrice, err := price.Get(*priceId, nil)

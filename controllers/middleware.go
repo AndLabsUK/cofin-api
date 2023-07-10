@@ -25,7 +25,7 @@ func RequireAuth(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusForbidden, ApiResponse{Errors: []error{errors.New("access_denied")}})
+	c.JSON(http.StatusForbidden, apiResponse{Errors: []error{errors.New("access_denied")}})
 	c.Abort()
 	return
 }

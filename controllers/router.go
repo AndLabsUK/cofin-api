@@ -9,6 +9,7 @@ type Router struct {
 	AuthController          *AuthController
 	UsersController         *UsersController
 	CompaniesController     *CompaniesController
+	PaymentsController      *PaymentsController
 	ConversationsController *ConversationsController
 }
 
@@ -27,4 +28,7 @@ func (r Router) RegisterRoutes(router gin.IRouter) {
 	//
 	authorized := router.Group("/", RequireAuth)
 	authorized.GET("/users/me", r.UsersController.GetCurrentUser)
+
+	authorized.GET("/payments/prices", r.PaymentsController.GetPrices)
+	authorized.POST("/payments/checkout", r.PaymentsController.Checkout)
 }
