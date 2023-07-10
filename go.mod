@@ -10,6 +10,7 @@ require (
 	github.com/hashicorp/go-retryablehttp v0.7.4
 	github.com/jaytaylor/html2text v0.0.0-20230321000545-74c2419ad056
 	github.com/joho/godotenv v1.5.1
+	github.com/stripe/stripe-go/v74 v74.25.0
 	github.com/tmc/langchaingo v0.0.0-20230630075547-a90d3dfb104f
 	go.uber.org/zap v1.24.0
 	golang.org/x/sync v0.3.0

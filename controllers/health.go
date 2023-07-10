@@ -15,9 +15,9 @@ func (h HealthController) Status(c *gin.Context) {
 	err := h.DB.Raw(`SELECT 1`).Row().Err()
 	if err != nil {
 		h.Logger.Errorf("Error checking database health: %v", err)
-		WriteInternalError(c)
+		RespondInternalErr(c)
 		return
 	}
 
-	WriteSuccess(c, nil)
+	RespondOK(c, nil)
 }

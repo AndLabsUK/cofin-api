@@ -17,13 +17,13 @@ type CompaniesController struct {
 func (cc CompaniesController) GetCompanies(c *gin.Context) {
 	limit, err := strconv.Atoi(c.Query("limit"))
 	if err != nil {
-		WriteBadRequestError(c, []error{err})
+		RespondBadRequestErr(c, []error{err})
 		return
 	}
 
 	offset, err := strconv.Atoi(c.Query("offset"))
 	if err != nil {
-		WriteBadRequestError(c, []error{err})
+		RespondBadRequestErr(c, []error{err})
 		return
 	}
 
@@ -39,9 +39,9 @@ func (cc CompaniesController) GetCompanies(c *gin.Context) {
 
 	if result.Error != nil {
 		cc.Logger.Errorf("Error querying companies: %w", result.Error)
-		WriteInternalError(c)
+		RespondInternalErr(c)
 		return
 	}
 
-	WriteSuccess(c, companies)
+	RespondOK(c, companies)
 }

@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"cofin/internal/google_pki"
+	"cofin/internal/stripe_api"
 	"cofin/models"
 	"crypto/rsa"
 	"encoding/base64"
@@ -28,7 +29,7 @@ func (a AuthController) SignIn(c *gin.Context) {
 
 	var payload signInParams
 	if err := c.BindJSON(&payload); err != nil {
-		WriteBadRequestError(c, []error{err})
+		RespondBadRequestErr(c, []error{err})
 		return
 	}
 
@@ -66,13 +67,13 @@ func (a AuthController) SignIn(c *gin.Context) {
 		return rsaPubKey, nil
 	})
 	if err != nil {
-		WriteBadRequestError(c, []error{err})
+		RespondBadRequestErr(c, []error{err})
 		return
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok || !token.Valid {
-		WriteBadRequestError(c, []error{ErrInvalidToken})
+		RespondBadRequestErr(c, []error{ErrInvalidToken})
 		return
 	}
 
@@ -89,20 +90,25 @@ func (a AuthController) SignIn(c *gin.Context) {
 				Email:             email,
 				FullName:          name,
 				FirebaseSubjectId: sub,
+				IsSubscribed:      false,
 			}
 
 			result := a.DB.Create(&user)
 			if result.Error != nil {
 				a.Logger.Errorf("Error creating user: %w", result.Error)
-				WriteInternalError(c)
+				RespondInternalErr(c)
 				return
 			}
+
 		} else {
 			a.Logger.Errorf("Error getting user: %w", tx.Error)
-			WriteInternalError(c)
+			RespondInternalErr(c)
 			return
 		}
 	}
+
+	stripe := stripe_api.StripeAPI{}
+	go stripe.CreateCustomer(&user, a.DB)
 
 	accessToken := models.AccessToken{
 		UserID: user.ID,
@@ -114,7 +120,7 @@ func (a AuthController) SignIn(c *gin.Context) {
 		return
 	}
 
-	WriteSuccess(c, accessToken)
+	RespondOK(c, accessToken)
 }
 
 func generateRandomString(l int) string {
