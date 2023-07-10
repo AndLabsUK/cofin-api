@@ -41,18 +41,13 @@ func NewRetriever(db *gorm.DB, ticker string) (*Retriever, error) {
 // ticker. The ability to customise what documents to use will come in the paid
 // plan as we build up functionality. Ideally, we should be recognising what
 // period to retrieve documents for based on free-form user input.
-func (r *Retriever) GetDocuments(ticker string) (*models.Company, []models.Document, error) {
-	company, err := models.GetCompany(r.db, ticker)
+func (r *Retriever) GetDocuments(companyID uint) ([]models.Document, error) {
+	documents, err := models.GetRecentCompanyDocuments(r.db, companyID, 2)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	documents, err := models.GetRecentCompanyDocuments(r.db, company.ID, 2)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return company, documents, nil
+	return documents, nil
 }
 
 func (r *Retriever) GetSemanticChunks(ctx context.Context, ticker string, documentUUID uuid.UUID, text string) ([]string, error) {

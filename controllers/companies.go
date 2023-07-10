@@ -32,9 +32,9 @@ func (cc CompaniesController) GetCompanies(c *gin.Context) {
 	var companies []models.Company
 	var result *gorm.DB
 	if len(query) > 0 {
-		result = cc.DB.Where("name ILIKE ? OR ticker ILIKE ?", "%"+query+"%", query+"%").Offset(offset).Limit(limit).Order("total_volume desc").Find(&companies)
+		result = cc.DB.Where("name ILIKE ? OR ticker ILIKE ?", "%"+query+"%", query+"%").Offset(offset).Limit(limit).Order("total_volume DESC").Find(&companies)
 	} else {
-		result = cc.DB.Offset(offset).Limit(limit).Order("total_volume desc").Find(&companies)
+		result = cc.DB.Offset(offset).Limit(limit).Order("total_volume DESC").Find(&companies)
 	}
 
 	if result.Error != nil {

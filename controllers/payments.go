@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"cofin/internal/stripe_api"
+
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -31,7 +32,6 @@ func (p PaymentsController) Checkout(c *gin.Context) {
 	}
 
 	user := CurrentUser(c)
-
 	stripe := stripe_api.StripeAPI{}
 	checkoutUrl, err := stripe.CreateCheckout(user, &payload.StripePriceId)
 	if err != nil {
