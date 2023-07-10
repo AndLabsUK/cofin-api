@@ -4,7 +4,6 @@ import (
 	"cofin/models"
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/openai"
@@ -78,8 +77,6 @@ func (g *Generator) Continue(ctx context.Context, company models.Company, docume
 	messages = append(messages, schema.HumanChatMessage{
 		Text: message,
 	})
-
-	log.Println(messages)
 
 	// TODO: why do I have to set the model here and not in the constructor?
 	res, err := g.Chat.Call(ctx, messages, func(o *llms.CallOptions) { o.Model = "gpt-3.5-turbo-16k" })
