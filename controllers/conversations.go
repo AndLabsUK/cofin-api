@@ -4,6 +4,8 @@ import (
 	"cofin/internal/retrieval"
 	"cofin/models"
 	"encoding/json"
+	"log"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -32,11 +34,30 @@ type ConversationsController struct {
 	Generator *retrieval.Generator
 }
 
+const MAX_MESSAGES_UNPAID = 3
+
 func (cc ConversationsController) PostConversation(c *gin.Context) {
+	user := CurrentUser(c)
+
 	companyID, err := strconv.ParseUint(c.Param("company_id"), 10, 32)
 	if err != nil {
 		RespondBadRequestErr(c, []error{err})
 		return
+	}
+
+	log.Printf("%+v", user)
+	if !user.IsSubscribed {
+		messageCount, err := models.CountUserMessages(cc.DB, user.ID, uint(companyID))
+		if err != nil {
+			cc.Logger.Errorf("Error getting messages: %w", err)
+			RespondInternalErr(c)
+			return
+		}
+
+		if messageCount >= MAX_MESSAGES_UNPAID {
+			RespondCustomStatusErr(c, http.StatusPaymentRequired, []error{ErrUnpaidUser})
+			return
+		}
 	}
 
 	message := Message{}
@@ -106,7 +127,6 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		return
 	}
 
-	user := CurrentUser(c)
 	if err := cc.DB.Transaction(func(tx *gorm.DB) error {
 		_, err := models.CreateUserMessage(tx, user.ID, company.ID, message.Text)
 		if err != nil {
@@ -147,7 +167,7 @@ func (cc ConversationsController) GetConversation(c *gin.Context) {
 		return
 	}
 
-	messages, err := models.GetMessagesForCompany(cc.DB, uint(companyID), offset, limit)
+	messages, err := models.GetMessagesForCompany(cc.DB, CurrentUserId(c), uint(companyID), offset, limit)
 	if err != nil {
 		cc.Logger.Errorf("Error getting messages: %w", err)
 		RespondInternalErr(c)

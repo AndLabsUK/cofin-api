@@ -12,6 +12,7 @@ var (
 	ErrInternalError  = errors.New("Internal error")
 	ErrUnknownCompany = errors.New("Unknown company")
 	ErrAccessDenied   = errors.New("Access denied")
+	ErrUnpaidUser     = errors.New("Unpaid user")
 )
 
 type apiResponse struct {
