@@ -132,7 +132,7 @@ func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing sec_api.List
 	// Create or get a company in a transaction.
 	var company *models.Company
 	err := db.Transaction(func(tx *gorm.DB) (err error) {
-		company, err = models.GetCompany(db, listing.Ticker)
+		company, err = models.GetCompanyByTicker(db, listing.Ticker)
 		if err != nil {
 			company = nil
 			return err

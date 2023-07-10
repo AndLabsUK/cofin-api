@@ -27,8 +27,22 @@ type Company struct {
 	TotalVolume float64 `json:"total_volume"`
 }
 
+func GetCompanyByID(db *gorm.DB, companyID uint) (*Company, error) {
+	var company Company
+	err := db.Where("id = ?", companyID).First(&company).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	return &company, nil
+}
+
 // Get company by ticker.
-func GetCompany(db *gorm.DB, ticker string) (*Company, error) {
+func GetCompanyByTicker(db *gorm.DB, ticker string) (*Company, error) {
 	ticker = strings.ToUpper(ticker)
 
 	var company Company

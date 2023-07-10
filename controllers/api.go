@@ -8,14 +8,15 @@ import (
 )
 
 var (
-	ErrInvalidToken  = errors.New("Invalid token")
-	ErrInternalError = errors.New("Internal error")
-	ErrUnknownTicker = errors.New("Unknown ticker")
+	ErrInvalidToken   = errors.New("Invalid token")
+	ErrInternalError  = errors.New("Internal error")
+	ErrUnknownCompany = errors.New("Unknown company")
+	ErrAccessDenied   = errors.New("Access denied")
 )
 
 type apiResponse struct {
-	Errors []error `json:"errors,omitempty"`
-	Data   any     `json:"data,omitempty"`
+	Errors []string `json:"errors,omitempty"`
+	Data   any      `json:"data,omitempty"`
 }
 
 func RespondOK(c *gin.Context, obj any) {
@@ -23,9 +24,17 @@ func RespondOK(c *gin.Context, obj any) {
 }
 
 func RespondBadRequestErr(c *gin.Context, errors []error) {
-	c.AbortWithStatusJSON(http.StatusBadRequest, apiResponse{Errors: errors})
+	RespondCustomStatusErr(c, http.StatusBadRequest, errors)
 }
 
 func RespondInternalErr(c *gin.Context) {
-	c.AbortWithStatusJSON(http.StatusInternalServerError, apiResponse{Errors: []error{ErrInternalError}})
+	c.AbortWithStatusJSON(http.StatusInternalServerError, apiResponse{Errors: []string{ErrInternalError.Error()}})
+}
+
+func RespondCustomStatusErr(c *gin.Context, status int, errors []error) {
+	errStrings := make([]string, len(errors))
+	for i, err := range errors {
+		errStrings[i] = err.Error()
+	}
+	c.AbortWithStatusJSON(http.StatusBadRequest, apiResponse{Errors: errStrings})
 }

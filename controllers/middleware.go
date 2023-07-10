@@ -3,7 +3,6 @@ package controllers
 import (
 	"cofin/core"
 	"cofin/models"
-	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -25,9 +24,7 @@ func RequireAuth(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusForbidden, apiResponse{Errors: []error{errors.New("access_denied")}})
-	c.Abort()
-	return
+	RespondCustomStatusErr(c, http.StatusForbidden, []error{ErrAccessDenied})
 }
 
 func CurrentUserId(c *gin.Context) uint {
