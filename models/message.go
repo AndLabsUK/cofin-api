@@ -1,10 +1,7 @@
 package models
 
 import (
-	"database/sql/driver"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -20,14 +17,13 @@ const (
 type Message struct {
 	Generic
 
-	UserID    uint `gorm:"index;not null"`
-	User      User
-	CompanyID uint `gorm:"index;not null"`
-	Company   Company
-	Author    MessageAuthor
-	Text      string
-	// TODO: move to JSONB
-	Annotation JSON
+	UserID     uint `gorm:"index;not null"`
+	User       User
+	CompanyID  uint `gorm:"index;not null"`
+	Company    Company
+	Author     MessageAuthor
+	Text       string
+	Annotation JSON `gorm:"type:jsonb"`
 }
 
 type Source struct {
@@ -41,29 +37,6 @@ type Source struct {
 type Annotation struct {
 	// DocumentIDs describe documents used as the source for the answer.
 	Sources []Source `json:"sources"`
-}
-
-type JSON json.RawMessage
-
-// Scan scan value into Jsonb, implements sql.Scanner interface.
-func (j *JSON) Scan(value interface{}) error {
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New(fmt.Sprint("Failed to unmarshal JSONB value:", value))
-	}
-
-	result := json.RawMessage{}
-	err := json.Unmarshal(bytes, &result)
-	*j = JSON(result)
-	return err
-}
-
-// Value return json value, implement driver.Valuer interface.
-func (j JSON) Value() (driver.Value, error) {
-	if len(j) == 0 {
-		return nil, nil
-	}
-	return json.RawMessage(j).MarshalJSON()
 }
 
 func CreateUserMessage(db *gorm.DB, userID, companyID uint, text string) (*Message, error) {
