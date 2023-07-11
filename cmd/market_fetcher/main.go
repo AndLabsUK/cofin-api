@@ -86,10 +86,10 @@ func fetchMarket(db *gorm.DB, logger *zap.SugaredLogger) {
 
 			tx := db.Save(company)
 			if tx.Error != nil {
-				logger.Infof("Unable to update market data for %v: %v", company.Ticker, tx.Error)
+				logger.Errorf("Unable to update market data for %v: %v", company.Ticker, tx.Error)
 			}
 		} else {
-			logger.Infof("Unable to fetch market data for %v", company.Ticker)
+			logger.Errorf("Unable to fetch market data for %v: %w", company.Ticker, err)
 		}
 	}
 

@@ -4,12 +4,13 @@ import (
 	"cofin/internal/retrieval"
 	"cofin/models"
 	"encoding/json"
-	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -19,6 +20,7 @@ type Conversation struct {
 	Messages  []Message `json:"messages" binding:"required"`
 }
 
+// TODO: can we use the struct model?
 // Message describes input or output of a conversation.
 type Message struct {
 	ID uint `json:"id,omitempty"`
@@ -47,7 +49,6 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		return
 	}
 
-	log.Printf("%+v", user)
 	if !user.IsSubscribed {
 		messageCount, err := models.CountUserMessages(cc.DB, user.ID, uint(companyID))
 		if err != nil {
@@ -90,17 +91,31 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		return
 	}
 
-	documents, err := retriever.GetDocuments(company.ID)
-	if err != nil {
-		cc.Logger.Errorf("Error getting documents: %w", err)
-		RespondInternalErr(c)
-		return
-	}
+	var documents []models.Document
+	var docUUID uuid.UUID
+	if os.Getenv("MOCK_DOCUMENT_UUID") != "" {
+		docUUID = uuid.MustParse(os.Getenv("MOCK_DOCUMENT_UUID"))
+		document, err := models.GetDocumentByUUID(cc.DB, docUUID)
+		if err != nil || document == nil {
+			cc.Logger.Errorf("Error getting document: %w", err)
+			RespondInternalErr(c)
+			return
+		}
 
-	if documents == nil {
-		cc.Logger.Errorf("No documents found for ticker %v", ticker)
-		RespondInternalErr(c)
-		return
+		documents = []models.Document{*document}
+	} else {
+		documents, err = retriever.GetDocuments(company.ID)
+		if err != nil {
+			cc.Logger.Errorf("Error getting documents: %w", err)
+			RespondInternalErr(c)
+			return
+		}
+
+		if documents == nil {
+			cc.Logger.Errorf("No documents found for ticker %v", ticker)
+			RespondInternalErr(c)
+			return
+		}
 	}
 
 	var allChunks = make([][]string, 0, len(documents))

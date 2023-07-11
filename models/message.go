@@ -20,12 +20,13 @@ const (
 type Message struct {
 	Generic
 
-	UserID     uint `gorm:"index;not null"`
-	User       User
-	CompanyID  uint `gorm:"index;not null"`
-	Company    Company
-	Author     MessageAuthor
-	Text       string
+	UserID    uint `gorm:"index;not null"`
+	User      User
+	CompanyID uint `gorm:"index;not null"`
+	Company   Company
+	Author    MessageAuthor
+	Text      string
+	// TODO: move to JSONB
 	Annotation JSON
 }
 
