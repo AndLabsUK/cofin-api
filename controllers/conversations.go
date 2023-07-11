@@ -194,11 +194,14 @@ func (cc ConversationsController) GetConversation(c *gin.Context) {
 	retrievedMessages := make([]Message, 0, len(messages))
 	for _, message := range messages {
 		annotation := models.Annotation{}
-		err := json.Unmarshal(message.Annotation, &annotation)
-		if err != nil {
-			cc.Logger.Errorf("Error unmarshalling annotation: %w", err)
-			RespondInternalErr(c)
-			return
+
+		if message.Annotation != nil {
+			err := json.Unmarshal(message.Annotation, &annotation)
+			if err != nil {
+				cc.Logger.Errorf("Error unmarshalling annotation: %w", err)
+				RespondInternalErr(c)
+				return
+			}
 		}
 
 		retrievedMessages = append(retrievedMessages, Message{
