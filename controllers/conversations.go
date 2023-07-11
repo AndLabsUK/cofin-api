@@ -150,7 +150,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 			return err
 		}
 
-		_, err = models.CreateAIMessage(tx, user.ID, company.ID, response, sources)
+		_, err = models.CreateAIMessage(tx, user.ID, company.ID+1, response, sources)
 		if err != nil {
 			return err
 		}
