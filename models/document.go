@@ -75,3 +75,17 @@ func GetRecentCompanyDocuments(db *gorm.DB, companyID uint, limit int) ([]Docume
 
 	return documents, nil
 }
+
+func GetDocumentByUUID(db *gorm.DB, documentUUID uuid.UUID) (*Document, error) {
+	var document Document
+	err := db.Where("uuid = ?", documentUUID).First(&document).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	return &document, nil
+}
