@@ -17,13 +17,13 @@ const (
 type Message struct {
 	Generic
 
-	UserID     uint `gorm:"index;not null"`
-	User       User
-	CompanyID  uint `gorm:"index;not null"`
-	Company    Company
-	Author     MessageAuthor
-	Text       string
-	Annotation JSON `gorm:"type:jsonb"`
+	UserID     uint          `gorm:"index;not null" json:"user_id"`
+	User       User          `json:"-"`
+	CompanyID  uint          `gorm:"index;not null" json:"company_id"`
+	Company    Company       `json:"-"`
+	Author     MessageAuthor `json:"author"`
+	Text       string        `json:"text"`
+	Annotation JSON          `gorm:"type:jsonb" json:"annotation"`
 }
 
 type Source struct {

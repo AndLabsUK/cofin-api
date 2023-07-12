@@ -3,33 +3,17 @@ package controllers
 import (
 	"cofin/internal/retrieval"
 	"cofin/models"
-	"encoding/json"
 	"net/http"
-	"os"
 	"strconv"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 type Conversation struct {
-	CompanyID uint      `json:"company_id" binding:"required"`
-	Messages  []Message `json:"messages" binding:"required"`
-}
-
-// TODO: can we use the struct model?
-// Message describes input or output of a conversation.
-type Message struct {
-	ID uint `json:"id,omitempty"`
-
-	Author models.MessageAuthor `json:"author" binding:"required"`
-	// Text input from the user.
-	Text      string          `json:"text" binding:"required"`
-	Sources   []models.Source `json:"sources,omitempty"`
-	CreatedAt time.Time       `json:"created_at,omitempty"`
+	CompanyID uint             `json:"company_id" binding:"required"`
+	Messages  []models.Message `json:"messages" binding:"required"`
 }
 
 type ConversationsController struct {
@@ -63,7 +47,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		}
 	}
 
-	message := Message{}
+	message := models.Message{}
 	err = c.BindJSON(&message)
 	if err != nil {
 		RespondBadRequestErr(c, []error{err})
@@ -82,9 +66,8 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		return
 	}
 
-	// TODO: use company ID as the namespace in Pinecone.
 	ticker := company.Ticker
-	retriever, err := retrieval.NewRetriever(cc.DB, ticker)
+	retriever, err := retrieval.NewRetriever(cc.DB, company.ID)
 	if err != nil {
 		cc.Logger.Errorf("Error creating retriever: %w", err)
 		RespondInternalErr(c)
@@ -92,38 +75,25 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 	}
 
 	var documents []models.Document
-	var docUUID uuid.UUID
-	if os.Getenv("MOCK_DOCUMENT_UUID") != "" {
-		docUUID = uuid.MustParse(os.Getenv("MOCK_DOCUMENT_UUID"))
-		document, err := models.GetDocumentByUUID(cc.DB, docUUID)
-		if err != nil || document == nil {
-			cc.Logger.Errorf("Error getting document: %w", err)
-			RespondInternalErr(c)
-			return
-		}
+	documents, err = retriever.GetDocuments(company.ID)
+	if err != nil {
+		cc.Logger.Errorf("Error getting documents: %w", err)
+		RespondInternalErr(c)
+		return
+	}
 
-		documents = []models.Document{*document}
-	} else {
-		documents, err = retriever.GetDocuments(company.ID)
-		if err != nil {
-			cc.Logger.Errorf("Error getting documents: %w", err)
-			RespondInternalErr(c)
-			return
-		}
-
-		if documents == nil {
-			cc.Logger.Errorf("No documents found for ticker %v", ticker)
-			RespondInternalErr(c)
-			return
-		}
+	if documents == nil {
+		cc.Logger.Errorf("No documents found for ticker %v", ticker)
+		RespondInternalErr(c)
+		return
 	}
 
 	var allChunks = make([][]string, 0, len(documents))
 	var sources = make([]models.Source, 0, len(documents))
 	for _, document := range documents {
-		chunks, err := retriever.GetSemanticChunks(c.Request.Context(), ticker, document.UUID, message.Text)
+		chunks, err := retriever.GetSemanticChunks(c.Request.Context(), company.ID, document.ID, message.Text)
 		if err != nil {
-			cc.Logger.Errorf("Error getting semantic chunks for ticker %v document %v: %w", ticker, document.ID, err)
+			cc.Logger.Errorf("Error getting semantic chunks for namespace %v document %v: %w", company.ID, document.ID, err)
 			RespondInternalErr(c)
 			return
 		}
@@ -144,13 +114,15 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		return
 	}
 
+	var aiMessage *models.Message
 	if err := cc.DB.Transaction(func(tx *gorm.DB) error {
 		_, err := models.CreateUserMessage(tx, user.ID, company.ID, message.Text)
 		if err != nil {
 			return err
 		}
 
-		_, err = models.CreateAIMessage(tx, user.ID, company.ID, response, sources)
+		// TODO: unmarshal annotation
+		aiMessage, err = models.CreateAIMessage(tx, user.ID, company.ID, response, sources)
 		if err != nil {
 			return err
 		}
@@ -162,7 +134,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		return
 	}
 
-	RespondOK(c, Message{Author: models.AIAuthor, Text: response, Sources: sources})
+	RespondOK(c, aiMessage)
 }
 
 func (cc ConversationsController) GetConversation(c *gin.Context) {
@@ -191,30 +163,8 @@ func (cc ConversationsController) GetConversation(c *gin.Context) {
 		return
 	}
 
-	retrievedMessages := make([]Message, 0, len(messages))
-	for _, message := range messages {
-		annotation := models.Annotation{}
-
-		if message.Annotation != nil {
-			err := json.Unmarshal(message.Annotation, &annotation)
-			if err != nil {
-				cc.Logger.Errorf("Error unmarshalling annotation: %w", err)
-				RespondInternalErr(c)
-				return
-			}
-		}
-
-		retrievedMessages = append(retrievedMessages, Message{
-			ID:        message.ID,
-			Author:    message.Author,
-			Text:      message.Text,
-			Sources:   annotation.Sources,
-			CreatedAt: message.CreatedAt,
-		})
-	}
-
 	RespondOK(c, Conversation{
 		CompanyID: uint(companyID),
-		Messages:  retrievedMessages,
+		Messages:  messages,
 	})
 }

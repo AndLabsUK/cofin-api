@@ -9,6 +9,15 @@ import (
 
 type JSON json.RawMessage
 
+func (j *JSON) UnmarshalJSON(b []byte) error {
+	rm := json.RawMessage(*j)
+	return rm.UnmarshalJSON(b)
+}
+
+func (j JSON) MarshalJSON() ([]byte, error) {
+	return json.RawMessage(j).MarshalJSON()
+}
+
 func (j *JSON) Scan(value interface{}) error {
 	bytes, ok := value.([]byte)
 	if !ok {

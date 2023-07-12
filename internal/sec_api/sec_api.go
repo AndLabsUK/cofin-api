@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"path"
 	"strings"
 	"time"
@@ -104,13 +103,13 @@ type Entity struct {
 }
 
 // Get companies traded on an exchange.
-func GetTradedCompanies(exchange Exchange) (listings []Listing, err error) {
+func GetTradedCompanies(key string, exchange Exchange) (listings []Listing, err error) {
 	const exchangeURLTemplate = "https://api.sec-api.io/mapping/exchange/%v"
 	req, err := http.NewRequest("GET", fmt.Sprintf(exchangeURLTemplate, exchange), nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", os.Getenv("SEC_API_KEY"))
+	req.Header.Set("Authorization", key)
 
 	client := retryablehttp.NewClient()
 	client.Logger = nil
@@ -132,41 +131,53 @@ func GetTradedCompanies(exchange Exchange) (listings []Listing, err error) {
 	return listings, nil
 }
 
-// Get the filing file from the SEC. Return the origin URL on the SEC website,
-// the file bytes, and an error, if there is one.
-func GetFilingFile(filing Filing) (originURL string, file []byte, err error) {
+func GetFilingOriginURL(filing Filing) string {
 	// Template for paths to the original files on the SEC website.
 	const secFileURLTemplate = "https://www.sec.gov/Archives/edgar/data/%v/%v/%v"
-	// Template for downloadable files in the paid SEC API archive.
-	const secArchiveURLTemplate = "https://archive.sec-api.io/%v/%v/%v"
-
 	// Get the file name.
 	_, fileName := path.Split(filing.LinkToFilingDetails)
 	// In the URL, the accession number should have no dashes.
 	accessionNumber := strings.ReplaceAll(filing.AccessionNo, "-", "")
-	originURL = fmt.Sprintf(secFileURLTemplate, filing.CIK, accessionNumber, fileName)
-	req, err := http.NewRequest("GET", fmt.Sprintf(secArchiveURLTemplate, filing.CIK, accessionNumber, fileName), nil)
+	originURL := fmt.Sprintf(secFileURLTemplate, filing.CIK, accessionNumber, fileName)
+	return originURL
+}
+
+func GetSECArchiveURL(filing Filing) string {
+	// Template for downloadable files in the paid SEC API archive.
+	const secArchiveURLTemplate = "https://archive.sec-api.io/%v/%v/%v"
+	// Get the file name.
+	_, fileName := path.Split(filing.LinkToFilingDetails)
+	// In the URL, the accession number should have no dashes.
+	accessionNumber := strings.ReplaceAll(filing.AccessionNo, "-", "")
+	url := fmt.Sprintf(secArchiveURLTemplate, filing.CIK, accessionNumber, fileName)
+	return url
+}
+
+// Get the filing file from the SEC. Return the origin URL on the SEC website,
+// the file bytes, and an error, if there is one.
+func GetFilingFile(key string, filing Filing) (file []byte, err error) {
+	req, err := http.NewRequest("GET", GetSECArchiveURL(filing), nil)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
-	req.Header.Set("Authorization", os.Getenv("SEC_API_KEY"))
+	req.Header.Set("Authorization", key)
 
 	client := retryablehttp.NewClient()
 	client.Logger = nil
 	resp, err := client.StandardClient().Do(req)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 
 	f, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 
-	return originURL, f, nil
+	return f, nil
 }
 
-func GetFilingsSince(key string, cik string, kind models.SourceKind, since time.Time, limit int) (filings []Filing, err error) {
+func GetFilingsSince(key, cik string, kind models.SourceKind, since time.Time, limit int) (filings []Filing, err error) {
 	timeStart := since.Format(time.RFC3339)
 	timeEnd := time.Now().Format(time.RFC3339)
 
@@ -226,4 +237,26 @@ func GetFilingsSince(key string, cik string, kind models.SourceKind, since time.
 	}
 
 	return r.Filings, nil
+}
+
+func ExtractSectionContent(key, originURL string, section models.Section) (string, error) {
+	const URLTemplate = "https://api.sec-api.io/extractor?token=%v&url=%v&item=%v&type=text"
+	req, err := http.NewRequest("GET", fmt.Sprintf(URLTemplate, key, originURL, section), nil)
+	if err != nil {
+		return "", err
+	}
+
+	client := retryablehttp.NewClient()
+	client.Logger = nil
+	resp, err := client.StandardClient().Do(req)
+	if err != nil {
+		return "", err
+	}
+
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	return string(b), nil
 }
