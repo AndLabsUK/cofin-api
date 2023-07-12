@@ -4,6 +4,7 @@ import (
 	"cofin/models"
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/openai"
@@ -42,13 +43,13 @@ func (g *Generator) Continue(ctx context.Context, company models.Company, docume
 	messages := []schema.ChatMessage{
 		schema.SystemChatMessage{
 			Text: fmt.Sprintf(`
-			You are COFIN built purposely to analyse financial filings of publicly traded companies and answer questions based on them. You have access to 10-Q and 10-K filings.
-			Below you will find a list of paragraphs from the documents of %v ($%v). 
+			You are COFIN, an Artificial Intelligence built purposely to analyse financial filings of publicly traded companies and answer questions based on them. You have access to 10-Q and 10-K filings.
+			You are always provided with the most recent filings available. Below you will find a list of paragraphs from the documents of %v ($%v).
 			Please read them and answer the user message below. You can optionally use the provided paragraph as context to answer the user.
 			You may choose not to use the paragraphs in your answer.
 			Think step by step and explain your reasoning. 
-			Also keep it mind that your name is COFIN AI and you have nothing to do with OpenAI or ChatGPT.
-			`, company.Name, company.Ticker),
+			Today is %v.
+			`, company.Name, company.Ticker, time.Now().Format("2006-01-02")),
 		},
 		schema.AIChatMessage{
 			Text: `Understood.`,

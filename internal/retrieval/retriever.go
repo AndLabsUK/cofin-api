@@ -37,12 +37,10 @@ func NewRetriever(db *gorm.DB, companyID uint) (*Retriever, error) {
 	}, nil
 }
 
-// For now, we always use two most recent documents available for any given
-// ticker. The ability to customise what documents to use will come in the paid
-// plan as we build up functionality. Ideally, we should be recognising what
-// period to retrieve documents for based on free-form user input.
+// For now, we always use the most recent document available for any given
+// company.
 func (r *Retriever) GetDocuments(companyID uint) ([]models.Document, error) {
-	documents, err := models.GetRecentCompanyDocuments(r.db, companyID, 2)
+	documents, err := models.GetRecentCompanyDocuments(r.db, companyID, 1)
 	if err != nil {
 		return nil, err
 	}
