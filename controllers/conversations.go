@@ -121,7 +121,6 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 			return err
 		}
 
-		// TODO: unmarshal annotation
 		aiMessage, err = models.CreateAIMessage(tx, user.ID, company.ID, response, sources)
 		if err != nil {
 			return err
