@@ -178,8 +178,8 @@ func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing sec_api.List
 		panic(err)
 	}
 
-	// If the company documents were fetched in the past 24 hours, don't
-	// fetchDocuments the company again.
+	// If the company documents were fetched in the past 24 hours, don't fetch
+	// documents for the company again.
 	if !company.LastFetchedAt.IsZero() && company.LastFetchedAt.Add(24*time.Hour).After(time.Now()) {
 		logger.Infof("Skipping company %v because it has been fetched in the past 24 hours", listing.Ticker)
 		return nil
