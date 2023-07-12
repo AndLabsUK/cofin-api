@@ -154,7 +154,7 @@ func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing sec_api.List
 	// Create or get a company in a transaction.
 	var company *models.Company
 	err := db.Transaction(func(tx *gorm.DB) (err error) {
-		company, err = models.GetCompanyByTicker(db, listing.Ticker)
+		company, err = models.GetCompanyByTicker(tx, listing.Ticker)
 		if err != nil {
 			company = nil
 			return err
@@ -165,7 +165,7 @@ func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing sec_api.List
 		}
 
 		logger.Infof("Creating company: %v", listing.Ticker)
-		company, err = models.CreateCompany(db, listing.Name, listing.Ticker, listing.CIK, time.Time{})
+		company, err = models.CreateCompany(tx, listing.Name, listing.Ticker, listing.CIK, time.Time{})
 		return err
 	})
 	if err != nil {
@@ -253,7 +253,7 @@ func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.C
 		// chunks in vector store, and updating the company. If any of these
 		// suboperations fail, we revert and abort.
 		if err := db.Transaction(func(tx *gorm.DB) error {
-			if err := processFiling(db, logger, company, splitter, store, filingKind, filing); err != nil {
+			if err := processFiling(tx, logger, company, splitter, store, filingKind, filing); err != nil {
 				return fmt.Errorf("failed to process a filing with accession number %v: %v", filing.AccessionNo, err.Error())
 			}
 
@@ -261,7 +261,7 @@ func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.C
 			// processing a filing for it.
 			company.LastFetchedAt = time.Now()
 			logger.Infof("Updating company %v (%v) last fetched time to %v", company.Name, company.Ticker, company.LastFetchedAt)
-			err = db.Save(&company).Error
+			err = tx.Save(&company).Error
 			if err != nil {
 				return fmt.Errorf("failed to update company for %v (%v): %w\n", company.Name, company.Ticker, err)
 			}
@@ -308,10 +308,10 @@ func processFiling(db *gorm.DB, logger *zap.SugaredLogger, company *models.Compa
 		return fmt.Errorf("failed to parse filing time (accession number %v) for %v (%v): %w\n", filing.AccessionNo, company.Name, company.Ticker, err)
 	}
 
-	// Wrap document creation and semantic indexing into a single transaction..
+	// Wrap document creation and semantic indexing into a single transaction.
 	if err = db.Transaction(func(tx *gorm.DB) error {
 		logger.Infof("Creating document (accession number %v) for %v (%v) filed at %v", filing.AccessionNo, company.Name, company.Ticker, filedAt)
-		document, err := models.CreateDocument(db, company, filedAt, filingKind, originURL, rawContent)
+		document, err := models.CreateDocument(tx, company, filedAt, filingKind, originURL, rawContent)
 		if err != nil {
 			return fmt.Errorf("failed to create document (accession number %v) for %v (%v): %w\n", filing.AccessionNo, company.Name, company.Ticker, err)
 		}
