@@ -3,8 +3,8 @@ package retrieval
 import (
 	"cofin/models"
 	"context"
+	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/vectorstores"
 	"gorm.io/gorm"
@@ -18,13 +18,13 @@ type Retriever struct {
 	topK     int
 }
 
-func NewRetriever(db *gorm.DB, ticker string) (*Retriever, error) {
+func NewRetriever(db *gorm.DB, companyID uint) (*Retriever, error) {
 	embedder, err := NewEmbedder()
 	if err != nil {
 		return nil, err
 	}
 
-	store, err := NewPinecone(context.Background(), embedder, ticker)
+	store, err := NewPinecone(context.Background(), embedder, companyID)
 	if err != nil {
 		return nil, err
 	}
@@ -50,10 +50,12 @@ func (r *Retriever) GetDocuments(companyID uint) ([]models.Document, error) {
 	return documents, nil
 }
 
-func (r *Retriever) GetSemanticChunks(ctx context.Context, ticker string, documentUUID uuid.UUID, text string) ([]string, error) {
+func (r *Retriever) GetSemanticChunks(ctx context.Context, companyID, documentID uint, text string) ([]string, error) {
 	// TODO: should I set the namespace here or in the constructor?
-	docs, err := r.store.SimilaritySearch(context.Background(), text, r.topK, vectorstores.WithNameSpace(ticker), vectorstores.WithFilters(map[string]string{
-		"document_uuid": documentUUID.String(),
+	docs, err := r.store.SimilaritySearch(context.Background(), text, r.topK, vectorstores.WithNameSpace(fmt.Sprint(companyID)), vectorstores.WithFilters(map[string]any{
+		// This is type-sensitive. Setting this to a string, for example, will
+		// return no results.
+		"document_id": documentID,
 	}))
 	if err != nil {
 		return nil, err

@@ -55,6 +55,10 @@ func (rs RealStonks) GetMarketData(ticker string) (*TickerInformation, error) {
 }
 
 func convertToFloat(s string) float64 {
+	if len(s) == 0 {
+		return 0
+	}
+
 	suffix := s[len(s)-1:]
 	switch suffix {
 	case "K", "M", "B":

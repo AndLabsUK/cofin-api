@@ -99,7 +99,6 @@ func (a AuthController) SignIn(c *gin.Context) {
 				RespondInternalErr(c)
 				return
 			}
-
 		} else {
 			a.Logger.Errorf("Error getting user: %w", tx.Error)
 			RespondInternalErr(c)

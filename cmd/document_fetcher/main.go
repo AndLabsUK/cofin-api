@@ -9,10 +9,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/jaytaylor/html2text"
 	"github.com/joho/godotenv"
 	"github.com/tmc/langchaingo/documentloaders"
 	"github.com/tmc/langchaingo/embeddings"
@@ -21,10 +21,16 @@ import (
 	"gorm.io/gorm"
 )
 
+const CHUNK_SIZE = 3000
+const CHUNK_OVERLAP = 100
 const MAX_FILINGS_PER_COMPANY_PER_BATCH = 20
+
+var SEC_API_KEY = ""
 
 func main() {
 	godotenv.Load()
+
+	SEC_API_KEY = os.Getenv("SEC_API_KEY")
 
 	// connect to the database
 	db, err := core.InitDB()
@@ -65,7 +71,7 @@ func newDocumentFetcher(db *gorm.DB) (*documentFetcher, error) {
 		return nil, err
 	}
 
-	splitter, err := retrieval.NewSplitter(1000, 100)
+	splitter, err := retrieval.NewSplitter(CHUNK_SIZE, CHUNK_OVERLAP)
 	if err != nil {
 		panic(err)
 	}
@@ -92,16 +98,14 @@ func (f *documentFetcher) run() {
 	fetchDocuments(db, logger, embedder, splitter)
 }
 
-// TODO: check ctx for cancellation.
 func fetchDocuments(db *gorm.DB, logger *zap.SugaredLogger, embedder *embeddings.OpenAI, splitter *retrieval.Splitter) {
 	logger.Info("Running fetching job...")
 
+	var allListings []sec_api.Listing
 	// Go over all stock exchanges.
 	for _, exchange := range sec_api.StockExchanges {
-		logger.Infof("Fetching exchange: %v", exchange)
-
 		// Get listings for the exchange.
-		listings, err := sec_api.GetTradedCompanies(exchange)
+		listings, err := sec_api.GetTradedCompanies(SEC_API_KEY, exchange)
 		if err != nil {
 			logger.Errorw(fmt.Errorf("failed to get companies traded on an exchange: %v", err).Error(), "exchange", exchange)
 			continue
@@ -113,15 +117,33 @@ func fetchDocuments(db *gorm.DB, logger *zap.SugaredLogger, embedder *embeddings
 				logger.Infof("Skipping delisted company: %v", listing.Ticker)
 				continue
 			}
-			logger.Infof("Processing company: %v", listing.Ticker)
 
-			// Create the company if it doesn't exist, fetchDocuments documents, and
-			// store them.
-			err := processListing(db, logger, listing, embedder, splitter)
-			if err != nil {
-				logger.Errorw(fmt.Errorf("failed to process a listing: %v", err).Error(), "ticker", listing.Ticker)
-				continue
-			}
+			allListings = append(allListings, listing)
+		}
+	}
+
+	// Allow limiting the number of companies to process. Useful in staging.
+	if maxCompanies := os.Getenv("MAX_COMPANIES"); maxCompanies != "" {
+		limit, err := strconv.Atoi(maxCompanies)
+		if err != nil {
+			logger.Errorf("failed to parse MAX_COMPANIES: %w", err)
+			return
+		}
+
+		if limit < len(allListings) {
+			allListings = allListings[:limit]
+		}
+	}
+
+	for _, listing := range allListings {
+		logger.Infof("Processing company: %v", listing.Ticker)
+
+		// Create the company if it doesn't exist, fetchDocuments documents, and
+		// store them.
+		err := processListing(db, logger, listing, embedder, splitter)
+		if err != nil {
+			logger.Errorw(fmt.Errorf("failed to process a listing: %v", err).Error(), "ticker", listing.Ticker)
+			continue
 		}
 	}
 }
@@ -151,13 +173,13 @@ func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing sec_api.List
 	}
 
 	// Initialize the vector store.
-	store, err := retrieval.NewPinecone(context.Background(), embedder, company.Ticker)
+	store, err := retrieval.NewPinecone(context.Background(), embedder, company.ID)
 	if err != nil {
 		panic(err)
 	}
 
-	// If the company documents were fetched in the past 24 hours, don't fetchDocuments
-	// the company again.
+	// If the company documents were fetched in the past 24 hours, don't
+	// fetchDocuments the company again.
 	if !company.LastFetchedAt.IsZero() && company.LastFetchedAt.Add(24*time.Hour).After(time.Now()) {
 		logger.Infof("Skipping company %v because it has been fetched in the past 24 hours", listing.Ticker)
 		return nil
@@ -200,19 +222,17 @@ func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.C
 		return fmt.Errorf("failed to fetchDocuments most recent document for %v (%v): %w\n", company.Name, company.Ticker, err)
 	}
 
-	// Query for the last two years of documents if we have no documents for the
+	// Query for the last one year of documents if we have no documents for the
 	// company. Otherwise query for documents since the last document.
-
-	// TODO: bug -- found duplicate documents.
-	var lastFiledAt = time.Now().Add(-365 * 2 * 24 * time.Hour)
+	var lastFiledAt = time.Now().Add(-365 * 1 * 24 * time.Hour)
 	if document != nil {
-		lastFiledAt = document.FiledAt
+		lastFiledAt = document.FiledAt.Add(1 * time.Second)
 	} else {
 		logger.Infof("No documents found for %v (%v) of kind %v, fetching all documents since %v", company.Name, company.Ticker, filingKind, lastFiledAt)
 	}
 
 	// Get filings since the last filed time.
-	filings, err := sec_api.GetFilingsSince(os.Getenv("SEC_API_KEY"), company.CIK, filingKind, lastFiledAt, MAX_FILINGS_PER_COMPANY_PER_BATCH)
+	filings, err := sec_api.GetFilingsSince(SEC_API_KEY, company.CIK, filingKind, lastFiledAt, MAX_FILINGS_PER_COMPANY_PER_BATCH)
 	if err != nil {
 		return fmt.Errorf("failed to fetchDocuments filings for %v (%v): %w\n", company.Name, company.Ticker, err)
 	}
@@ -234,7 +254,7 @@ func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.C
 		// suboperations fail, we revert and abort.
 		if err := db.Transaction(func(tx *gorm.DB) error {
 			if err := processFiling(db, logger, company, splitter, store, filingKind, filing); err != nil {
-				return fmt.Errorf("failed to process a filing with accession number %v for a company: %v", filing.AccessionNo, err.Error())
+				return fmt.Errorf("failed to process a filing with accession number %v: %v", filing.AccessionNo, err.Error())
 			}
 
 			// Update the company's last fetched time after successfully
@@ -257,16 +277,29 @@ func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.C
 
 // processFiling processes a filing and stores it.
 func processFiling(db *gorm.DB, logger *zap.SugaredLogger, company *models.Company, splitter *retrieval.Splitter, store vectorstores.VectorStore, filingKind models.SourceKind, filing sec_api.Filing) error {
-	// Get the filing file from the SEC.
-	originURL, file, err := sec_api.GetFilingFile(filing)
-	if err != nil {
-		return fmt.Errorf("failed to fetchDocuments filing file (accession number %v) for %v (%v): %w\n", filing.AccessionNo, company.Name, company.Ticker, err)
+	var sections []models.Section
+	if filingKind == models.Q10 {
+		sections = models.Q10Sections
+	} else if filingKind == models.K10 {
+		sections = models.K10Sections
 	}
 
-	// Convert the file to text.
-	html, err := html2text.FromString(string(file))
-	if err != nil {
-		return fmt.Errorf("failed to parse filing file (accession number %v) for %v (%v): %w\n", filing.AccessionNo, company.Name, company.Ticker, err)
+	var rawContent string
+	originURL := sec_api.GetFilingOriginURL(filing)
+	for _, section := range sections {
+		// Get the filing file from the SEC.
+		sectionContent, err := sec_api.ExtractSectionContent(SEC_API_KEY, originURL, section)
+		if err != nil {
+			return fmt.Errorf("failed to fetchDocuments filing file (accession number %v) for %v (%v): %w\n", filing.AccessionNo, company.Name, company.Ticker, err)
+		}
+
+		if sectionContent != "" {
+			rawContent += "\n\n" + sectionContent
+		}
+	}
+
+	if rawContent == "" {
+		return fmt.Errorf("failed to fetchDocuments filing file (accession number %v) for %v (%v): no content\n", filing.AccessionNo, company.Name, company.Ticker)
 	}
 
 	// Create the document.
@@ -275,39 +308,22 @@ func processFiling(db *gorm.DB, logger *zap.SugaredLogger, company *models.Compa
 		return fmt.Errorf("failed to parse filing time (accession number %v) for %v (%v): %w\n", filing.AccessionNo, company.Name, company.Ticker, err)
 	}
 
-	// By wrapping this piece of code in a transaction we ensure that the vector
-	// DB and documents in SQL are in sync. If a document fails to create, we
-	// obviously won't upload chunks to Pinecone. But if chunks fail to upload,
-	// we will revert document creation.
-	//
-	// Note that chunks are uploaded in batches, so a batch might succeed
-	// uploading and then a subsequent batch will fail, in which case there will
-	// be lingering chunks in vector store. This is not an acute issue -- we
-	// always query the vector store by filtering for document IDs, and if we
-	// don't have the document saved with this ID, the chunks will simply be
-	// "dead".
+	// Wrap document creation and semantic indexing into a single transaction..
 	if err = db.Transaction(func(tx *gorm.DB) error {
 		logger.Infof("Creating document (accession number %v) for %v (%v) filed at %v", filing.AccessionNo, company.Name, company.Ticker, filedAt)
-		document, err := models.CreateDocument(db, company, filedAt, filingKind, originURL, html)
+		document, err := models.CreateDocument(db, company, filedAt, filingKind, originURL, rawContent)
 		if err != nil {
 			return fmt.Errorf("failed to create document (accession number %v) for %v (%v): %w\n", filing.AccessionNo, company.Name, company.Ticker, err)
 		}
 
-		// Split the document into chunks.
-		//
-		// TODO: use https://sec-api.io/docs/sec-filings-item-extraction-api
-		//
-		// TODO: carefully parse table data and numerical data. Use this? https://sec-api.io/docs/xbrl-to-json-converter-api
-		text := documentloaders.NewText(strings.NewReader(html))
+		text := documentloaders.NewText(strings.NewReader(rawContent))
 		chunks, err := text.LoadAndSplit(context.Background(), splitter)
 		if err != nil {
 			return fmt.Errorf("failed to split document (accession number %v) for %v (%v): %w\n", filing.AccessionNo, company.Name, company.Ticker, err)
 		}
 
-		// Store chunks in the vector store. In the future, we might want to store
-		// chunks in the SQL DB. This will largely depend on our supportability and
-		// debugging needs.
-		err = retrieval.StoreChunks(store, document.UUID, chunks)
+		// Store chunks in the vector store.
+		err = retrieval.StoreChunks(store, document.ID, chunks)
 		if err != nil {
 			return fmt.Errorf("failed to store chunks (accession number %v) for %v (%v): %w\n", filing.AccessionNo, company.Name, company.Ticker, err)
 		}

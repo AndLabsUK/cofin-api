@@ -2,9 +2,9 @@ package retrieval
 
 import (
 	"context"
+	"fmt"
 	"os"
 
-	"github.com/google/uuid"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/vectorstores"
@@ -13,7 +13,7 @@ import (
 )
 
 // NewPinecone initializes a new Pinecone vector store.
-func NewPinecone(ctx context.Context, embedder embeddings.Embedder, ticker string) (*pinecone.Store, error) {
+func NewPinecone(ctx context.Context, embedder embeddings.Embedder, companyID uint) (*pinecone.Store, error) {
 	store, err := pinecone.New(
 		ctx,
 		pinecone.WithProjectName(os.Getenv("PINECONE_PROJECT")),
@@ -21,7 +21,7 @@ func NewPinecone(ctx context.Context, embedder embeddings.Embedder, ticker strin
 		pinecone.WithEnvironment(os.Getenv("PINECONE_ENVIRONMENT")),
 		pinecone.WithEmbedder(embedder),
 		pinecone.WithAPIKey(os.Getenv("PINECONE_API_KEY")),
-		pinecone.WithNameSpace(ticker),
+		pinecone.WithNameSpace(fmt.Sprint(companyID)),
 	)
 
 	if err != nil {
@@ -32,8 +32,8 @@ func NewPinecone(ctx context.Context, embedder embeddings.Embedder, ticker strin
 }
 
 // StoreChunks stores document chunks in Pinecone.
-func StoreChunks(store vectorstores.VectorStore, documentUUID uuid.UUID, chunks []schema.Document) error {
-	const BATCH_SIZE = 100
+func StoreChunks(store vectorstores.VectorStore, documentID uint, chunks []schema.Document) error {
+	const BATCH_SIZE = 50
 
 	// Set document metadata. We only set the ID that matches the internal ID.
 	//
@@ -41,7 +41,7 @@ func StoreChunks(store vectorstores.VectorStore, documentUUID uuid.UUID, chunks 
 	for i := range chunks {
 		// Modify chunks in-place. They are not pointers.
 		chunks[i].Metadata = map[string]interface{}{
-			"document_uuid": documentUUID,
+			"document_id": documentID,
 		}
 	}
 
