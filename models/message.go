@@ -88,10 +88,15 @@ func GetMessagesForCompanyInverseChronological(db *gorm.DB, userID, companyID ui
 	return messages, nil
 }
 
-func GetMessagesForCompanyChronological(db *gorm.DB, userID, companyID uint, offset, limit int) ([]Message, error) {
+func GetLastNMessagesForCompanyChronological(db *gorm.DB, userID, companyID uint, limit int) ([]Message, error) {
 	var messages []Message
-	if err := db.Where("user_id = ? AND company_id = ?", userID, companyID).Offset(offset).Limit(limit).Order("created_at ASC").Find(&messages).Error; err != nil {
+	if err := db.Where("user_id = ? AND company_id = ?", userID, companyID).Limit(limit).Order("created_at DESC").Find(&messages).Error; err != nil {
 		return nil, err
+	}
+
+	var chronologicalMessages []Message = make([]Message, 0, len(messages))
+	for i := len(messages) - 1; i >= 0; i-- {
+		chronologicalMessages = append(chronologicalMessages, messages[i])
 	}
 
 	return messages, nil

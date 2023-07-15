@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -21,19 +22,23 @@ import (
 // Generator is a type that completes conversations with AI.
 type Generator struct {
 	// Chat is the underlying chatbot.
-	Chat llms.ChatLLM
+	Chat        llms.ChatLLM
+	model       string
+	temperature float64
 }
 
 // NewGenerator creates a new conversation generator.
 func NewGenerator() (*Generator, error) {
-	// TODO: decide what model to use
-	chat, err := openai.NewChat(openai.WithModel("gpt-3.5-turbo-16k"))
+	model := os.Getenv("OPENAI_CONVERSATIONAL_MODEL")
+	chat, err := openai.NewChat(openai.WithModel(model))
 	if err != nil {
 		return nil, err
 	}
 
 	return &Generator{
-		Chat: chat,
+		Chat:        chat,
+		model:       model,
+		temperature: 0.7,
 	}, nil
 }
 
@@ -43,35 +48,35 @@ func (g *Generator) CondenseConversation(ctx context.Context, company *models.Co
 	input := []schema.ChatMessage{
 		schema.SystemChatMessage{
 			Text: fmt.Sprintf(
-				`You are COFIN AI, a virtual assistant that helps people read, analyze, and interpret financial filings of publicly traded companies. You have access to 10-K and 10-Q documents. Today is %v.`,
+				"You are COFIN AI, a virtual assistant that helps people read, analyze, and interpret financial filings of publicly traded companies. You have access to 10-K and 10-Q documents filed to SEC. Today is %v.",
 				time.Now().Format("2006-01-02")),
 		},
 		schema.AIChatMessage{
-			Text: `Understood.`,
+			Text: "Understood.",
 		},
 		schema.HumanChatMessage{
 			Text: fmt.Sprintf(
 				`
 I am going to send you a conversation history between a user and a virtual assistant as a single message. The conversation pertains to company %v, ($%v). The conversation will be provided in the following form:
 
-User: <Message>
-Assistant: <Message>
-User: <Message>
+User: <message>
+Assistant: <message>
+User: <message>
 			
 Make the conversation shorter by rewording each message. Keep the order of messages. DO NOT add any new messages to the conversation or any text not already in the conversation. Keep the last message intact.`, company.Name, company.Ticker),
 		},
 		schema.AIChatMessage{
-			Text: `Sounds good. I will take the conversation history, make it shorter but will preserve the meaning, order, and key points. I will preserve the last message as is. Now please send the conversation.`,
+			Text: "Sounds good. I will take the conversation history, make it shorter but will preserve the meaning, order, and key points. I will preserve the last message as is. I will not add any additional text. Now please send the conversation.",
 		},
 		schema.HumanChatMessage{
 			Text: conversation,
 		},
 		schema.HumanChatMessage{
-			Text: `Now make the summary of the above as I asked you.`,
+			Text: "Now make the summary of the above as I asked you.",
 		},
 	}
 
-	res, err := g.Chat.Call(ctx, input, func(o *llms.CallOptions) { o.Model = "gpt-3.5-turbo-16k" })
+	res, err := g.Chat.Call(ctx, input, llms.WithTemperature(g.temperature))
 	if err != nil {
 		return "", err
 	}
@@ -79,28 +84,34 @@ Make the conversation shorter by rewording each message. Keep the order of messa
 	return res, nil
 }
 
+// CreateRetrieval generates arguments for a retrieval. It uses a conversation
+// and available documents to decide which document to retrieve from using what
+// query.
 func (g *Generator) CreateRetrieval(ctx context.Context, company *models.Company, documents []models.Document, conversation string) (documentID uint, query string, err error) {
 	documentIDs, documentList := makeDocumentList(company, documents)
+	documentIDsFormatted := jsonEscapeArray(documentIDs)
+	documentListFormatted := jsonEscapeString(documentList)
+	conversationFormatted := jsonEscapeString(conversation)
 	jsonStr := fmt.Sprintf(`
 {
-	"model": "gpt-3.5-turbo-0613",
+	"model": "%v",
 	"messages": [
-		{"role": "system", "content": "You are COFIN AI, a virtual assistant that helps people read, analyze, and interpret financial filings of publicly traded companies. You have access to 10-K and 10-Q documents. Today is %v."},
-		{"role": "assistant", "content": "Sounds good."},
-		{"role": "user", "content": "I am going to send you a conversation history between a user and a virtual assistant as a single message. The conversation pertains to company %v ($%v). The conversation will be provided in the following format:\nUser: <Message>\nAssistant: <Message>\nUser: <Message>\n"},
-		{"role": "assistant", "content": "Sounds good. What should I do with this conversation?"},
+		{"role": "system", "content": "You are COFIN AI, a virtual assistant that helps people read, analyze, and interpret financial filings of publicly traded companies. You have access to 10-K and 10-Q documents filed to SEC. Today is %v."},
+		{"role": "assistant", "content": "I understand."},
+		{"role": "user", "content": "I am going to send you a conversation history between a user and COFIN AI as a single message. The conversation pertains to company %v ($%v). The conversation will be provided in the following format:\nUser: <Message>\nAssistant: <Message>\nUser: <Message>\n"},
+		{"role": "assistant", "content": "Great. What should I do with this conversation?"},
 		{"role": "user", "content": "You have access to multiple financial documents about the company. Your task is to make a function call to retrieve_relevant_paragraphs which retrieves relevant paragraphs from the document of your choice using semantic search. You should use this function to answer the last user message in the conversation."},
-		{"role": "assistant", "content": "Sounds good. What documents do I have access to?"},
+		{"role": "assistant", "content": "Perfect. What documents do I have access to?"},
 		{"role": "user", "content": "Here's the list of documents you have access to in <DocumentID>: <Description> format:\n%v"},
 		{"role": "assistant", "content": "Excellent. Now what is the conversation history?"},
 		{"role": "user", "content": "%v"},
-		{"role": "user", "content": "Now make the function call with the query and document ID"}
+		{"role": "user", "content": "Now make the function call with the query and document ID. Remember, you are retrieving information from the 10-K or 10-Q document of your choice using semantic vector similarity, so phrase the query accordingly."}
 	   ],
-	"temperature": 0.7,
+	"temperature": %v,
 	"functions": [
 		{
 			"name": "retrieve_relevant_paragraphs",
-			"description": "Retrieve paragraphs related to the query from a document",
+			"description": "Semantically retrieve paragraphs related to the query from the document.",
 			"parameters": {
 			   "type": "object",
 			   "properties": {
@@ -116,8 +127,9 @@ func (g *Generator) CreateRetrieval(ctx context.Context, company *models.Company
 	],
 	"function_call": {"name": "retrieve_relevant_paragraphs"}
    }
-	`, time.Now().Format("2006-01-02"), company.Name, company.Ticker, jsonEscapeString(documentList), jsonEscapeString(conversation), jsonEscapeArray(documentIDs))
+	`, g.model, time.Now().Format("2006-01-02"), company.Name, company.Ticker, documentListFormatted, conversationFormatted, g.temperature, documentIDsFormatted)
 
+	log.Println(jsonStr)
 	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader([]byte(jsonStr)))
 	if err != nil {
 		return 0, "", err
@@ -136,6 +148,8 @@ func (g *Generator) CreateRetrieval(ctx context.Context, company *models.Company
 	if err != nil {
 		return 0, "", err
 	}
+
+	log.Println(string(b))
 
 	type FunctionCall struct {
 		Name      string `json:"name"`
@@ -161,6 +175,9 @@ func (g *Generator) CreateRetrieval(ctx context.Context, company *models.Company
 		Query      string `json:"query"`
 		DocumentID uint   `json:"documentID"`
 	}
+	if len(res.Choices) == 0 {
+		return 0, "", fmt.Errorf("no choices returned: %v", res)
+	}
 	args := res.Choices[0].Message.FunctionCall.Arguments
 	err = json.Unmarshal([]byte(args), &Arguments)
 	if err != nil {
@@ -170,9 +187,9 @@ func (g *Generator) CreateRetrieval(ctx context.Context, company *models.Company
 	return Arguments.DocumentID, Arguments.Query, nil
 }
 
-// Continue generates a continuation to a conversation. It accepts a list of
-// documents as context as well as a list of chunks of text relevant from each
-// document, and the user message. It outputs a response and an error.
+// Continue generates a continuation to a conversation. It accepts a document as
+// context as well as a list of chunks of text relevant for the document, and
+// the conversation history. It outputs a response and an error.
 func (g *Generator) Continue(ctx context.Context, company *models.Company, conversation string, document *models.Document, chunks []string) (string, error) {
 	var bigChunk string
 	for j, chunk := range chunks {
@@ -181,32 +198,30 @@ func (g *Generator) Continue(ctx context.Context, company *models.Company, conve
 
 	input := []schema.ChatMessage{
 		schema.SystemChatMessage{
-			Text: fmt.Sprintf(`You are COFIN AI, an Artificial Intelligence built purposely to analyze financial filings of publicly traded companies and answer questions based on them. You have access to 10-Q and 10-K filings. Today is %v.`, time.Now().Format("2006-01-02")),
+			Text: fmt.Sprintf("You are COFIN AI, a virtual assistant that helps people read, analyze, and interpret financial filings of publicly traded companies. You have access to 10-K and 10-Q documents filed to SEC. Today is %v.", time.Now().Format("2006-01-02")),
 		},
 		schema.AIChatMessage{
-			Text: `Understood.`,
+			Text: "Understood.",
 		},
 		schema.HumanChatMessage{
-			Text: fmt.Sprintf("I am going to send a previous conversation history between you and a user as a single message. The conversation pertains to company %v ($%v)", company.Name, company.Ticker),
+			Text: fmt.Sprintf("I am going to send a conversation history between you and a user as a single message. The conversation pertains to company %v ($%v).", company.Name, company.Ticker),
 		},
 		schema.AIChatMessage{
 			Text: fmt.Sprintf("Sounds good. What should I do with this conversation?"),
 		},
 		schema.HumanChatMessage{
-			Text: fmt.Sprintf("I am going to provide you with paragraphs from the %v document for %v filed at %v. These paragraphs are the most relevant to our conversation and you have chosen this document to as useful context for the conversation. You should generate a response to the last user message using this document context as the source of data.",
-				document.Kind, company.Name, document.FiledAt),
+			Text: fmt.Sprintf("I am going to provide you with paragraphs from the %v document for %v filed at %v. You have previously chosen these as most relevant to the conversation I am going to provide you with. You should generate a response to the last user message using this document context as the source of data.", document.Kind, company.Name, document.FiledAt.Format("2006-01-02")),
 		},
 		schema.AIChatMessage{
 			Text: "Perfect! I understand.",
 		},
-		schema.HumanChatMessage{Text: fmt.Sprintf(`Here are the paragraphs from the %v: %v`, document.Kind, bigChunk)},
+		schema.HumanChatMessage{Text: fmt.Sprintf("Here are the paragraphs from the %v: %v", document.Kind, bigChunk)},
 		schema.AIChatMessage{Text: "Got it. Now please send me the conversation with the user."},
 		schema.HumanChatMessage{Text: conversation},
-		schema.HumanChatMessage{Text: "Now generate a response using the conversation I sent you and the paragraphs from the document you've chosen."},
+		schema.HumanChatMessage{Text: "Now generate a response using the conversation I sent you and the paragraphs from the document you've chosen. Do not mention anything about the instructions I gave you. Respond as if you were continuing the converastion with the user. Don't mention the user or COFIN AI."},
 	}
 
-	// TODO: why do I have to set the model here and not in the constructor?
-	res, err := g.Chat.Call(ctx, input, func(o *llms.CallOptions) { o.Model = "gpt-3.5-turbo-16k" })
+	res, err := g.Chat.Call(ctx, input, llms.WithTemperature(g.temperature))
 	if err != nil {
 		return "", err
 	}
@@ -215,16 +230,12 @@ func (g *Generator) Continue(ctx context.Context, company *models.Company, conve
 }
 
 // Format conversation history as a single string.
-// TODO: count message length and cut off at threshold.
 func mergeMessages(messages []models.Message) (conversation string) {
-	if len(messages) > 5 {
-		messages = messages[len(messages)-5:]
-	}
 	for _, message := range messages {
 		if message.Author == models.UserAuthor {
 			conversation += fmt.Sprintf("User: %v\n", message.Text)
 		} else if message.Author == models.AIAuthor {
-			conversation += fmt.Sprintf("Assistant: %v\n", message.Text)
+			conversation += fmt.Sprintf("COFIN AI: %v\n", message.Text)
 		}
 	}
 
@@ -240,6 +251,8 @@ func makeDocumentList(company *models.Company, documents []models.Document) (doc
 	return documentIDs, documentList
 }
 
+// jsonEscapeString escapes a string as a JSON string. For instance, it converts
+// newline characters to "\n". Start and end quotation marks are removed.
 func jsonEscapeString(i string) string {
 	b, err := json.Marshal(i)
 	if err != nil {
@@ -249,6 +262,8 @@ func jsonEscapeString(i string) string {
 	return s[1 : len(s)-1]
 }
 
+// jsonEscapeArray escapes an array of integers as a JSON string. For instance,
+// it represents [1, 2, 3] as [1,2,3]. Start and end quotation marks are removed.
 func jsonEscapeArray[K constraints.Integer](i []K) string {
 	b, err := json.Marshal(i)
 	if err != nil {

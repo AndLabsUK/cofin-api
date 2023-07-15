@@ -60,7 +60,7 @@ func main() {
 
 type documentFetcher struct {
 	db       *gorm.DB
-	embedder *embeddings.OpenAI
+	embedder embeddings.Embedder
 	splitter *retrieval.Splitter
 	logger   *zap.SugaredLogger
 }
@@ -98,7 +98,7 @@ func (f *documentFetcher) run() {
 	fetchDocuments(db, logger, embedder, splitter)
 }
 
-func fetchDocuments(db *gorm.DB, logger *zap.SugaredLogger, embedder *embeddings.OpenAI, splitter *retrieval.Splitter) {
+func fetchDocuments(db *gorm.DB, logger *zap.SugaredLogger, embedder embeddings.Embedder, splitter *retrieval.Splitter) {
 	logger.Info("Running fetching job...")
 
 	var allListings []sec_api.Listing
@@ -150,7 +150,7 @@ func fetchDocuments(db *gorm.DB, logger *zap.SugaredLogger, embedder *embeddings
 
 // processListing creates a company if it doesn't exist, fetches documents, and
 // stores them.
-func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing sec_api.Listing, embedder *embeddings.OpenAI, splitter *retrieval.Splitter) error {
+func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing sec_api.Listing, embedder embeddings.Embedder, splitter *retrieval.Splitter) error {
 	// Create or get a company in a transaction.
 	var company *models.Company
 	err := db.Transaction(func(tx *gorm.DB) (err error) {

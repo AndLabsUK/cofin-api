@@ -66,12 +66,15 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		RespondCustomStatusErr(c, http.StatusNotFound, []error{ErrUnknownCompany})
 		return
 	}
+	cc.Logger.Infow(fmt.Sprintf("Answering user message: %v", message.Text), "userID", user.ID, "companyID", company.ID)
 
-	messageHistory, err := models.GetMessagesForCompanyChronological(cc.DB, user.ID, company.ID, 0, 15)
+	messageHistory, err := models.GetLastNMessagesForCompanyChronological(cc.DB, user.ID, company.ID, 6)
 	if err != nil {
 		cc.Logger.Errorf("Error getting messages: %w", err)
 		RespondInternalErr(c)
 	}
+
+	cc.Logger.Infow(fmt.Sprintf("Message history: %+v", messageHistory), "userID", user.ID, "companyID", company.ID)
 
 	ticker := company.Ticker
 	retriever, err := retrieval.NewRetriever(cc.DB, company.ID)
@@ -94,15 +97,12 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		return
 	}
 
-	cc.Logger.Infow(fmt.Sprintf("Answering user message: %v", message.Text), "userID", user.ID, "companyID", company.ID)
-
 	conversation, err := cc.Generator.CondenseConversation(c.Request.Context(), company, append(messageHistory, message))
 	if err != nil {
 		cc.Logger.Errorf("Error condensing conversation: %w", err)
 		RespondInternalErr(c)
 	}
-
-	cc.Logger.Infow(fmt.Sprintf("Condensed the conversation to: %v", conversation), "userID", user.ID, "companyID", company.ID)
+	cc.Logger.Infow(fmt.Sprintf("Condensed the conversation to:\n%v", conversation), "userID", user.ID, "companyID", company.ID)
 
 	documentID, query, err := cc.Generator.CreateRetrieval(c.Request.Context(), company, documents, conversation)
 	if err != nil {
@@ -110,7 +110,6 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		RespondInternalErr(c)
 		return
 	}
-
 	cc.Logger.Infow(fmt.Sprintf("Created retrieval for document %v with query %v", documentID, query), "userID", user.ID, "companyID", company.ID)
 
 	document, err := models.GetDocumentByID(cc.DB, documentID)
@@ -127,8 +126,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		RespondInternalErr(c)
 		return
 	}
-
-	cc.Logger.Infow(fmt.Sprintf("Got (%v) semantic chunks for document %v", chunks, documentID), "userID", user.ID, "companyID", company.ID)
+	cc.Logger.Infow(fmt.Sprintf("Got semantic chunks for document %v:\n%v", documentID, chunks), "userID", user.ID, "companyID", company.ID)
 
 	sources = append(sources, models.Source{
 		ID:        document.ID,
@@ -143,7 +141,6 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		RespondInternalErr(c)
 		return
 	}
-
 	cc.Logger.Infow(fmt.Sprintf("Generated response: %v", response), "userID", user.ID, "companyID", company.ID)
 
 	var aiMessage *models.Message

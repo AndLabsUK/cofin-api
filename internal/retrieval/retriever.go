@@ -3,7 +3,6 @@ package retrieval
 import (
 	"cofin/models"
 	"context"
-	"fmt"
 
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/vectorstores"
@@ -18,6 +17,7 @@ type Retriever struct {
 	topK     int
 }
 
+// NewRetriever creates a new Retriever namespaces to the given company.
 func NewRetriever(db *gorm.DB, companyID uint) (*Retriever, error) {
 	embedder, err := NewEmbedder()
 	if err != nil {
@@ -49,8 +49,7 @@ func (r *Retriever) GetDocuments(companyID uint) ([]models.Document, error) {
 }
 
 func (r *Retriever) GetSemanticChunks(ctx context.Context, companyID, documentID uint, text string) ([]string, error) {
-	// TODO: should I set the namespace here or in the constructor?
-	docs, err := r.store.SimilaritySearch(context.Background(), text, r.topK, vectorstores.WithNameSpace(fmt.Sprint(companyID)), vectorstores.WithFilters(map[string]any{
+	docs, err := r.store.SimilaritySearch(context.Background(), text, r.topK, vectorstores.WithFilters(map[string]any{
 		// This is type-sensitive. Setting this to a string, for example, will
 		// return no results.
 		"document_id": documentID,
