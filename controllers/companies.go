@@ -45,7 +45,7 @@ func (cc CompaniesController) GetCompanies(c *gin.Context) {
 	}
 
 	query := c.Query("query")
-	companies, err := models.FindCompanies(cc.DB, query, limit, offset)
+	companies, err := models.FindCompanies(cc.DB, query, offset, limit)
 	if err != nil {
 		cc.Logger.Errorf("Error querying companies: %w", err)
 		RespondInternalErr(c)
