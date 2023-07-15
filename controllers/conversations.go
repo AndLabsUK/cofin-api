@@ -3,6 +3,7 @@ package controllers
 import (
 	"cofin/internal/retrieval"
 	"cofin/models"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -93,11 +94,15 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		return
 	}
 
+	cc.Logger.Infow(fmt.Sprintf("Answering user message: %v", message.Text), "userID", user.ID, "companyID", company.ID)
+
 	conversation, err := cc.Generator.CondenseConversation(c.Request.Context(), company, append(messageHistory, message))
 	if err != nil {
 		cc.Logger.Errorf("Error condensing conversation: %w", err)
 		RespondInternalErr(c)
 	}
+
+	cc.Logger.Infow(fmt.Sprintf("Condensed the conversation to: %v", conversation), "userID", user.ID, "companyID", company.ID)
 
 	documentID, query, err := cc.Generator.CreateRetrieval(c.Request.Context(), company, documents, conversation)
 	if err != nil {
@@ -105,6 +110,8 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		RespondInternalErr(c)
 		return
 	}
+
+	cc.Logger.Infow(fmt.Sprintf("Created retrieval for document %v with query %v", documentID, query), "userID", user.ID, "companyID", company.ID)
 
 	document, err := models.GetDocumentByID(cc.DB, documentID)
 	if err != nil {
@@ -121,6 +128,8 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		return
 	}
 
+	cc.Logger.Infow(fmt.Sprintf("Got (%v) semantic chunks for document %v", chunks, documentID), "userID", user.ID, "companyID", company.ID)
+
 	sources = append(sources, models.Source{
 		ID:        document.ID,
 		Kind:      document.Kind,
@@ -134,6 +143,8 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		RespondInternalErr(c)
 		return
 	}
+
+	cc.Logger.Infow(fmt.Sprintf("Generated response: %v", response), "userID", user.ID, "companyID", company.ID)
 
 	var aiMessage *models.Message
 	if err := cc.DB.Transaction(func(tx *gorm.DB) error {
