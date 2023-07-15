@@ -137,7 +137,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		OriginURL: document.OriginURL,
 	})
 
-	response, err := cc.Generator.Continue(c.Request.Context(), company, document, chunks, message.Text)
+	response, err := cc.Generator.Continue(c.Request.Context(), company, conversation, document, chunks)
 	if err != nil {
 		cc.Logger.Errorf("Error generating AI response: %w", err)
 		RespondInternalErr(c)
