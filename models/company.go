@@ -78,7 +78,8 @@ func FindCompanies(db *gorm.DB, query string, offset, limit int) ([]Company, err
 	var companies []Company
 	var err error
 	if len(query) > 0 {
-		err = db.Where("name ILIKE ? OR ticker ILIKE ?", "%"+query+"%", query+"%").Offset(offset).Limit(limit).Order("total_volume DESC").Find(&companies).Error
+		q := "%" + query + "%"
+		err = db.Where("name ILIKE ? OR ticker ILIKE ?", q, q).Offset(offset).Limit(limit).Order("total_volume DESC").Find(&companies).Error
 	} else {
 		err = db.Offset(offset).Limit(limit).Order("total_volume DESC").Find(&companies).Error
 	}
