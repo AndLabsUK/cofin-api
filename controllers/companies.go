@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"cofin/models"
+	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -17,17 +18,13 @@ type CompaniesController struct {
 func (cc CompaniesController) GetCompany(c *gin.Context) {
 	ticker := c.Params.ByName("ticker")
 
-	var company models.Company
-	result := cc.DB.Where("ticker = ?", ticker).First(&company)
-
-	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			RespondBadRequestErr(c, []error{result.Error})
-			return
-		}
-
-		cc.Logger.Errorf("Error querying company: %w", result.Error)
+	company, err := models.GetCompanyByTicker(cc.DB, ticker)
+	if err != nil {
+		cc.Logger.Errorf("Error querying company: %w", err)
 		RespondInternalErr(c)
+		return
+	} else if company == nil {
+		RespondCustomStatusErr(c, http.StatusNotFound, []error{ErrUnknownCompany})
 		return
 	}
 
@@ -48,17 +45,9 @@ func (cc CompaniesController) GetCompanies(c *gin.Context) {
 	}
 
 	query := c.Query("query")
-
-	var companies []models.Company
-	var result *gorm.DB
-	if len(query) > 0 {
-		result = cc.DB.Where("name ILIKE ? OR ticker ILIKE ?", "%"+query+"%", query+"%").Offset(offset).Limit(limit).Order("total_volume DESC").Find(&companies)
-	} else {
-		result = cc.DB.Offset(offset).Limit(limit).Order("total_volume DESC").Find(&companies)
-	}
-
-	if result.Error != nil {
-		cc.Logger.Errorf("Error querying companies: %w", result.Error)
+	companies, err := models.FindCompanies(cc.DB, query, limit, offset)
+	if err != nil {
+		cc.Logger.Errorf("Error querying companies: %w", err)
 		RespondInternalErr(c)
 		return
 	}

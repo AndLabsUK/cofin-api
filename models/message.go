@@ -79,7 +79,7 @@ func CreateAIMessage(db *gorm.DB, userID, companyID uint, text string, sources [
 	return &message, nil
 }
 
-func GetMessagesForCompany(db *gorm.DB, userID, companyID uint, offset, limit int) ([]Message, error) {
+func GetMessagesForCompanyInverseChronological(db *gorm.DB, userID, companyID uint, offset, limit int) ([]Message, error) {
 	var messages []Message
 	if err := db.Where("user_id = ? AND company_id = ?", userID, companyID).Offset(offset).Limit(limit).Order("created_at DESC").Find(&messages).Error; err != nil {
 		return nil, err
@@ -88,9 +88,18 @@ func GetMessagesForCompany(db *gorm.DB, userID, companyID uint, offset, limit in
 	return messages, nil
 }
 
-func CountUserMessages(db *gorm.DB, userID, companyID uint) (int64, error) {
+func GetMessagesForCompanyChronological(db *gorm.DB, userID, companyID uint, offset, limit int) ([]Message, error) {
+	var messages []Message
+	if err := db.Where("user_id = ? AND company_id = ?", userID, companyID).Offset(offset).Limit(limit).Order("created_at ASC").Find(&messages).Error; err != nil {
+		return nil, err
+	}
+
+	return messages, nil
+}
+
+func CountUserMessages(db *gorm.DB, userID uint) (int64, error) {
 	var count int64
-	if err := db.Model(&Message{}).Where("user_id = ? AND company_id = ? AND author = ?", userID, companyID, UserAuthor).Count(&count).Error; err != nil {
+	if err := db.Model(&Message{}).Where("user_id = ? AND author = ?", userID, UserAuthor).Count(&count).Error; err != nil {
 		return 0, err
 	}
 

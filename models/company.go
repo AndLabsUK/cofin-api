@@ -73,3 +73,23 @@ func CreateCompany(db *gorm.DB, name, ticker, cik string, lastFetchedAt time.Tim
 
 	return &company, nil
 }
+
+func FindCompanies(db *gorm.DB, query string, offset, limit int) ([]Company, error) {
+	var companies []Company
+	var err error
+	if len(query) > 0 {
+		err = db.Where("name ILIKE ? OR ticker ILIKE ?", "%"+query+"%", query+"%").Offset(offset).Limit(limit).Order("total_volume DESC").Find(&companies).Error
+	} else {
+		err = db.Offset(offset).Limit(limit).Order("total_volume DESC").Find(&companies).Error
+	}
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		} else {
+			return nil, err
+		}
+	}
+
+	return companies, nil
+}
