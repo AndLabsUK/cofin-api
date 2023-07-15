@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -174,9 +173,9 @@ func GetRecentCompanyDocuments(db *gorm.DB, companyID uint, limit int) ([]Docume
 	return documents, nil
 }
 
-func GetDocumentByUUID(db *gorm.DB, documentUUID uuid.UUID) (*Document, error) {
+func GetDocumentByID(db *gorm.DB, documentID uint) (*Document, error) {
 	var document Document
-	err := db.Where("uuid = ?", documentUUID).First(&document).Error
+	err := db.Where("id = ?", documentID).First(&document).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
