@@ -21,7 +21,7 @@ func (p PaymentsController) GetPrices(c *gin.Context) {
 
 func (p PaymentsController) Checkout(c *gin.Context) {
 	type checkoutParams struct {
-		StripePriceId string `json:"stripe_price_id"`
+		StripePriceID string `json:"stripe_price_id"`
 	}
 
 	var payload checkoutParams
@@ -33,7 +33,7 @@ func (p PaymentsController) Checkout(c *gin.Context) {
 
 	user := CurrentUser(c)
 	stripe := stripe_api.StripeAPI{}
-	checkoutUrl, err := stripe.CreateCheckout(user, &payload.StripePriceId)
+	checkoutUrl, err := stripe.CreateCheckout(user, payload.StripePriceID)
 	if err != nil {
 		RespondBadRequestErr(c, []error{err})
 		return

@@ -4,6 +4,7 @@ import (
 	"cofin/controllers"
 	"cofin/core"
 	"cofin/internal/retrieval"
+	"cofin/internal/stripe_api"
 	"cofin/models"
 	"os"
 
@@ -71,8 +72,9 @@ func createServer(db *gorm.DB) *gin.Engine {
 
 	router := controllers.Router{
 		AuthController: &controllers.AuthController{
-			DB:     db,
-			Logger: logger.With("controller", "auth"),
+			DB:        db,
+			Logger:    logger.With("controller", "auth"),
+			StripeAPI: stripe_api.NewStripeAPI(),
 		},
 		HealthController: &controllers.HealthController{
 			DB:     db,

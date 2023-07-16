@@ -23,8 +23,6 @@ type ConversationsController struct {
 	Generator *retrieval.Generator
 }
 
-const MAX_MESSAGES_UNPAID = 3
-
 func (cc ConversationsController) PostConversation(c *gin.Context) {
 	user := CurrentUser(c)
 
@@ -34,18 +32,9 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		return
 	}
 
-	if !user.IsSubscribed {
-		messageCount, err := models.CountUserMessages(cc.DB, user.ID)
-		if err != nil {
-			cc.Logger.Errorf("Error getting messages: %w", err)
-			RespondInternalErr(c)
-			return
-		}
-
-		if messageCount >= MAX_MESSAGES_UNPAID {
-			RespondCustomStatusErr(c, http.StatusPaymentRequired, []error{ErrUnpaidUser})
-			return
-		}
+	if user.RemainingMessageAllowance <= 0 {
+		RespondCustomStatusErr(c, http.StatusPaymentRequired, []error{ErrUnpaidUser})
+		return
 	}
 
 	message := models.Message{}
@@ -184,7 +173,7 @@ func (cc ConversationsController) GetConversation(c *gin.Context) {
 		return
 	}
 
-	messages, err := models.GetMessagesForCompanyInverseChronological(cc.DB, CurrentUserId(c), uint(companyID), offset, limit)
+	messages, err := models.GetMessagesForCompanyInverseChronological(cc.DB, CurrentUserID(c), uint(companyID), offset, limit)
 	if err != nil {
 		cc.Logger.Errorf("Error getting messages: %w", err)
 		RespondInternalErr(c)
