@@ -181,14 +181,14 @@ func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing sec_api.List
 	// If the company documents were fetched in the past 24 hours, don't fetch
 	// documents for the company again.
 	if !company.LastFetchedAt.IsZero() && company.LastFetchedAt.Add(24*time.Hour).After(time.Now()) {
-		logger.Infof("Skipping company %v because it has been fetched in the past 24 hours", listing.Ticker)
+		logger.Infow(fmt.Sprintf("Skipping company %v because it has been fetched in the past 24 hours", listing.Ticker), "companyID", company.ID)
 		return nil
 	}
 
 	for _, filingKind := range []models.SourceKind{models.K10, models.Q10} {
 		logger.Infof("Processing filing kind: %v", filingKind)
 		if err := processFilingKind(db, logger, company, splitter, store, filingKind); err != nil {
-			logger.Errorw(fmt.Errorf("failed to process a filing kind for a company: %v", err).Error(), "ticker", company.Ticker, "filingKind", filingKind)
+			logger.Errorw(fmt.Errorf("failed to process a filing kind for a company: %v", err).Error(), "companyID", company.ID, "filingKind", filingKind)
 			continue
 		}
 	}
@@ -299,7 +299,8 @@ func processFiling(db *gorm.DB, logger *zap.SugaredLogger, company *models.Compa
 	}
 
 	if rawContent == "" {
-		return fmt.Errorf("failed to fetchDocuments filing file (accession number %v) for %v (%v): no content\n", filing.AccessionNo, company.Name, company.Ticker)
+		logger.Infow("failed to fetchDocuments filing file (accession number %v) for %v (%v): no content\n", filing.AccessionNo, company.Name, company.Ticker)
+		return nil
 	}
 
 	// Create the document.
