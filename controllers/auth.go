@@ -93,6 +93,10 @@ func (ac AuthController) SignIn(c *gin.Context) {
 		if err != nil {
 			return err
 		} else if user != nil {
+			accessToken, err = models.CreateAccessToken(tx, user.ID, generateRandomString(128))
+			if err != nil {
+				return err
+			}
 			return nil
 		}
 
