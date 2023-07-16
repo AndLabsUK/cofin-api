@@ -32,7 +32,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		return
 	}
 
-	if user.RemainingMessageAllowance <= 0 {
+	if !user.IsSubscribed && user.RemainingMessageAllowance <= 0 {
 		RespondCustomStatusErr(c, http.StatusPaymentRequired, []error{ErrUnpaidUser})
 		return
 	}
