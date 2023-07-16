@@ -79,7 +79,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 	}
 
 	if len(documents) == 0 {
-		var earlyResponse = "Sorry, I'm afraid not recent documents are available for this company."
+		var earlyResponse = "Sorry, I'm afraid no recent documents are available for this company."
 		cc.Logger.Infow(fmt.Sprintf("Early response \"%v\" for user messsage", earlyResponse), "userID", user.ID, "companyID", company.ID)
 		aiMessage, err := SaveMessages(cc.DB, user.ID, company.ID, userMessage.Text, earlyResponse, []models.Source{})
 		if err != nil {
