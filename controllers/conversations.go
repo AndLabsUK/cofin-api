@@ -64,7 +64,6 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 	}
 	messageHistory = reverseMessageArray(messageHistory)
 
-	ticker := company.Ticker
 	retriever, err := retrieval.NewRetriever(cc.DB, company.ID)
 	if err != nil {
 		cc.Logger.Errorf("Error creating retriever: %w", err)
@@ -80,8 +79,16 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 	}
 
 	if documents == nil {
-		cc.Logger.Errorf("No documents found for ticker %v", ticker)
-		RespondInternalErr(c)
+		var earlyResponse = "Sorry, I'm afraid not recent documents are available for this company."
+		cc.Logger.Infow(fmt.Sprintf("Early response \"%v\" for user messsage", earlyResponse), "userID", user.ID, "companyID", company.ID)
+		aiMessage, err := SaveMessages(cc.DB, user.ID, company.ID, userMessage.Text, earlyResponse, []models.Source{})
+		if err != nil {
+			cc.Logger.Errorf("Error saving messages: %w", err)
+			RespondInternalErr(c)
+			return
+		}
+
+		RespondOK(c, aiMessage)
 		return
 	}
 
