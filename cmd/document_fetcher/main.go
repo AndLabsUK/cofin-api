@@ -228,7 +228,7 @@ func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.C
 	if document != nil {
 		lastFiledAt = document.FiledAt.Add(1 * time.Second)
 	} else {
-		logger.Infof("No documents found for %v (%v) of kind %v, fetching all documents since %v", company.Name, company.Ticker, filingKind, lastFiledAt)
+		logger.Infow(fmt.Sprintf("No documents found for %v (%v) of kind %v, fetching all documents since %v", company.Name, company.Ticker, filingKind, lastFiledAt), "companyID", company.ID, "filingKind", filingKind)
 	}
 
 	// Get filings since the last filed time.
@@ -299,7 +299,7 @@ func processFiling(db *gorm.DB, logger *zap.SugaredLogger, company *models.Compa
 	}
 
 	if rawContent == "" {
-		logger.Infow("failed to fetchDocuments filing file (accession number %v) for %v (%v): no content\n", filing.AccessionNo, company.Name, company.Ticker)
+		logger.Infow(fmt.Sprintf("failed to fetchDocuments filing file (accession number %v) for %v (%v): no content (%v)\n", filing.AccessionNo, company.Name, company.Ticker, originURL), "companyID", company.ID, "filingKind", filingKind)
 		return nil
 	}
 
