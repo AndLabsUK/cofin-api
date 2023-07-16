@@ -121,12 +121,12 @@ var (
 type Document struct {
 	Generic
 
-	CompanyID  uint `gorm:"index;not null"`
-	Company    Company
+	CompanyID  uint       `gorm:"index;not null"`
+	Company    Company    `json:"-"`
 	FiledAt    time.Time  `gorm:"index;not null"`
 	Kind       SourceKind `gorm:"index;not null"`
 	OriginURL  string
-	RawContent string
+	RawContent string `json:"-"`
 }
 
 func CreateDocument(db *gorm.DB, company *Company, filedAt time.Time, kind SourceKind, originURL, rawContent string) (*Document, error) {
@@ -145,7 +145,7 @@ func CreateDocument(db *gorm.DB, company *Company, filedAt time.Time, kind Sourc
 	return &document, nil
 }
 
-func GetMostRecentCompanyDocumentOfKind(db *gorm.DB, companyID uint, kind SourceKind) (*Document, error) {
+func GetCompanyDocumentsOfKindInverseChronological(db *gorm.DB, companyID uint, kind SourceKind) (*Document, error) {
 	var document Document
 	err := db.Where("company_id = ? AND kind = ?", companyID, kind).Order("filed_at DESC").First(&document).Error
 	if err != nil {
@@ -159,9 +159,9 @@ func GetMostRecentCompanyDocumentOfKind(db *gorm.DB, companyID uint, kind Source
 	return &document, nil
 }
 
-func GetRecentCompanyDocuments(db *gorm.DB, companyID uint, limit int) ([]Document, error) {
+func GetCompanyDocumentsInverseChronological(db *gorm.DB, companyID uint, offset, limit int) ([]Document, error) {
 	var documents []Document
-	err := db.Where("company_id = ?", companyID).Order("filed_at DESC").Limit(limit).Find(&documents).Error
+	err := db.Preload("Company").Where("company_id = ?", companyID).Order("filed_at DESC").Offset(offset).Limit(limit).Find(&documents).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil

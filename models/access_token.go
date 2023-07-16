@@ -17,7 +17,7 @@ func CreateAccessToken(db *gorm.DB, userID uint, token string) (*AccessToken, er
 		Token:  token,
 	}
 
-	if err := db.Create(accessToken).Error; err != nil {
+	if err := db.Preload("User").Create(accessToken).Error; err != nil {
 		return nil, err
 	}
 

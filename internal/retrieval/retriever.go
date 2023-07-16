@@ -1,7 +1,6 @@
 package retrieval
 
 import (
-	"cofin/models"
 	"context"
 
 	"github.com/tmc/langchaingo/embeddings"
@@ -35,17 +34,6 @@ func NewRetriever(db *gorm.DB, companyID uint) (*Retriever, error) {
 		store:    store,
 		topK:     10,
 	}, nil
-}
-
-// For now, we always use the most recent document available for any given
-// company.
-func (r *Retriever) GetDocuments(companyID uint) ([]models.Document, error) {
-	documents, err := models.GetRecentCompanyDocuments(r.db, companyID, 1)
-	if err != nil {
-		return nil, err
-	}
-
-	return documents, nil
 }
 
 func (r *Retriever) GetSemanticChunks(ctx context.Context, companyID, documentID uint, text string) ([]string, error) {
