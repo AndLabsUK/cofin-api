@@ -42,12 +42,12 @@ func NewGenerator() (*Generator, error) {
 }
 
 // CondenseConversation takes a conversation and condenses it into a single message.
-func (g *Generator) CondenseConversation(ctx context.Context, company *models.Company, messages []models.Message, lastMessage string) (string, error) {
-	conversation := mergeMessages(messages)
+func (g *Generator) CondenseConversation(ctx context.Context, user *models.User, company *models.Company, messages []models.Message, lastMessage string) (string, error) {
+	conversation := mergeMessages(user, messages)
 	input := []schema.ChatMessage{
 		schema.SystemChatMessage{
 			Text: fmt.Sprintf(
-				"You are COFIN AI, a virtual assistant that helps people read, analyze, and interpret financial filings of publicly traded companies. You have access to 10-K and 10-Q documents filed to SEC. Today is %v.",
+				"You are COFIN, a virtual assistant that helps people read, analyze, and interpret financial filings of publicly traded companies. You have access to 10-K and 10-Q documents filed to SEC. Today is %v.",
 				time.Now().Format("2006-01-02")),
 		},
 		schema.HumanChatMessage{
@@ -56,7 +56,7 @@ func (g *Generator) CondenseConversation(ctx context.Context, company *models.Co
 I am going to send you a conversation history between you and a user as a single message. The conversation pertains to company %v, ($%v). The conversation will be provided in the following form:
 
 User: <message>
-COFIN AI: <message>
+COFIN: <message>
 User: <message>
 			
 Your task is to rewrite each message to make it shorter but to keep the most important context that will help you answer the user's last message.`, company.Name, company.Ticker),
@@ -68,7 +68,7 @@ Your task is to rewrite each message to make it shorter but to keep the most imp
 			Text: fmt.Sprintf("The last message from the user is:\n%v", lastMessage),
 		},
 		schema.HumanChatMessage{
-			Text: "Now rewrite the conversation message-by-message as I told you. Don't add any new messages from the user or COFIN AI. Do NOT answer the user's last message. Just rewrite the conversation to keep the context important for the user's last message.",
+			Text: "Now rewrite the conversation message-by-message as I told you. Don't add any new messages from the user or COFIN. Do NOT answer the user's last message. Just rewrite the conversation to keep the context important for the user's last message.",
 		},
 	}
 
@@ -96,7 +96,7 @@ func (g *Generator) CreateRetrieval(ctx context.Context, company *models.Company
 {
 	"model": "%v",
 	"messages": [
-		{"role": "system", "content": "You are COFIN AI, a virtual assistant that helps people read, analyze, and interpret financial filings of publicly traded companies. You have access to 10-K and 10-Q documents filed to SEC. Today is %v."},
+		{"role": "system", "content": "You are COFIN, a virtual assistant that helps people read, analyze, and interpret financial filings of publicly traded companies. You have access to 10-K and 10-Q documents filed to SEC. Today is %v."},
 		{"role": "user", "content": "I am going to send you a conversation history between you and a user as a single message. The conversation pertains to company %v ($%v). You have access to financial documents of the company."},
 		{"role": "user", "content": "You need to respond to the user's last message. You can either create a response right away or make a function call to retrieve_relevant_paragraphs which retrieves relevant paragraphs from the document of your choice using semantic search. If you want to, you can retrieve this information to answer the last user message in the conversation."},
 		{"role": "user", "content": "Here's the list of documents you have access to in <DocumentID>: <Description> format:\n%v"},
@@ -198,7 +198,7 @@ func (g *Generator) Continue(ctx context.Context, company *models.Company, conve
 
 	input := []schema.ChatMessage{
 		schema.SystemChatMessage{
-			Text: fmt.Sprintf("You are COFIN AI, a virtual assistant that helps people read, analyze, and interpret financial filings of publicly traded companies. You have access to 10-K and 10-Q documents filed to SEC. Today is %v.", time.Now().Format("2006-01-02")),
+			Text: fmt.Sprintf("You are COFIN, a virtual assistant that helps people read, analyze, and interpret financial filings of publicly traded companies. You have access to 10-K and 10-Q documents filed to SEC. Today is %v.", time.Now().Format("2006-01-02")),
 		},
 		schema.HumanChatMessage{
 			Text: fmt.Sprintf("I am going to send a conversation history between you and a user as a single message. The conversation pertains to company %v ($%v).", company.Name, company.Ticker),
@@ -210,7 +210,7 @@ func (g *Generator) Continue(ctx context.Context, company *models.Company, conve
 		schema.AIChatMessage{Text: "Got it. Now please send me the conversation with the user."},
 		schema.HumanChatMessage{Text: fmt.Sprintf("Here is the conversation:\n%v", conversation)},
 		schema.HumanChatMessage{Text: fmt.Sprintf("Here is the last message from the user:\n%v", lastMessage)},
-		schema.HumanChatMessage{Text: "Now generate a response using the conversation I sent you and the paragraphs from the document you've chosen. Do not mention anything about the instructions I gave you. Speak to the user directly, as if you were continuing the conversation with the user."},
+		schema.HumanChatMessage{Text: "Now generate a response using the conversation I sent you and the paragraphs from the document you've chosen. Do not mention anything about the instructions I gave you. Speak to the user directly, as if you were continuing the conversation with the user. Don't repeat user's last message."},
 	}
 
 	res, err := g.Chat.Call(ctx, input, llms.WithTemperature(g.temperature))
@@ -222,12 +222,12 @@ func (g *Generator) Continue(ctx context.Context, company *models.Company, conve
 }
 
 // Format conversation history as a single string.
-func mergeMessages(messages []models.Message) (conversation string) {
+func mergeMessages(user *models.User, messages []models.Message) (conversation string) {
 	for _, message := range messages {
 		if message.Author == models.UserAuthor {
-			conversation += fmt.Sprintf("User: %v\n", message.Text)
+			conversation += fmt.Sprintf("%v: %v\n", user.FullName, message.Text)
 		} else if message.Author == models.AIAuthor {
-			conversation += fmt.Sprintf("COFIN AI: %v\n", message.Text)
+			conversation += fmt.Sprintf("COFIN: %v\n", message.Text)
 		}
 	}
 
