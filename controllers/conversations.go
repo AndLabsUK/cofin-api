@@ -4,6 +4,7 @@ import (
 	"cofin/internal/retrieval"
 	"cofin/models"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -78,6 +79,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		return
 	}
 
+	log.Println(documents)
 	if documents == nil {
 		var earlyResponse = "Sorry, I'm afraid not recent documents are available for this company."
 		cc.Logger.Infow(fmt.Sprintf("Early response \"%v\" for user messsage", earlyResponse), "userID", user.ID, "companyID", company.ID)

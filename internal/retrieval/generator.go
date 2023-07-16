@@ -248,18 +248,18 @@ func makeDocumentList(company *models.Company, documents []models.Document) (doc
 func jsonEscapeString(i string) string {
 	b, err := json.Marshal(i)
 	if err != nil {
-		panic(err)
+		return ""
 	}
 	s := string(b)
 	return s[1 : len(s)-1]
 }
 
 // jsonEscapeArray escapes an array of integers as a JSON string. For instance,
-// it represents [1, 2, 3] as [1,2,3]. Start and end quotation marks are removed.
+// it represents [1 2 3] as [1,2,3]. Start and end quotation marks are removed.
 func jsonEscapeArray[K constraints.Integer](i []K) string {
 	b, err := json.Marshal(i)
 	if err != nil {
-		panic(err)
+		return "[]"
 	}
 	s := string(b)
 	return s
