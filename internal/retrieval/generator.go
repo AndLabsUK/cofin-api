@@ -102,7 +102,7 @@ func (g *Generator) CreateRetrieval(ctx context.Context, company *models.Company
 		{"role": "user", "content": "Here's the list of documents you have access to in <DocumentID>: <Description> format:\n%v"},
 		{"role": "user", "content": "Here is the conversation history:\n%v"},
 		{"role": "user", "content": "And here is the user's last message:\n%v"},
-		{"role": "user", "content": "Now either respond to the last message (address the user directly) or make a function call. If you decide to do a function call, you will be retrieving information from the 10-K or 10-Q document of your choice using semantic vector similarity, so create a query that will match relevant information in the document."}
+		{"role": "user", "content": "Address the user directly and respond to their last message or, if you think more information is needed to answer, choose a document with retrieve_relevant_paragraphs and submit a query to retrieve information from the document. Phrase the query so that it matches text in the document that might contain the answer to the user's question."}
 	   ],
 	"temperature": %v,
 	"functions": [
