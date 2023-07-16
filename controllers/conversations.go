@@ -92,7 +92,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		return
 	}
 
-	conversation, err := cc.Generator.CondenseConversation(c.Request.Context(), company, messageHistory, userMessage.Text)
+	conversation, err := cc.Generator.CondenseConversation(c.Request.Context(), user, company, messageHistory, userMessage.Text)
 	if err != nil {
 		cc.Logger.Errorf("Error condensing conversation: %w", err)
 		RespondInternalErr(c)
