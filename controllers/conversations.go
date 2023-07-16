@@ -4,7 +4,6 @@ import (
 	"cofin/internal/retrieval"
 	"cofin/models"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 
@@ -79,8 +78,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		return
 	}
 
-	log.Println(documents)
-	if documents == nil {
+	if len(documents) == 0 {
 		var earlyResponse = "Sorry, I'm afraid not recent documents are available for this company."
 		cc.Logger.Infow(fmt.Sprintf("Early response \"%v\" for user messsage", earlyResponse), "userID", user.ID, "companyID", company.ID)
 		aiMessage, err := SaveMessages(cc.DB, user.ID, company.ID, userMessage.Text, earlyResponse, []models.Source{})
