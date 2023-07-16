@@ -171,7 +171,7 @@ func (g *Generator) CreateRetrieval(ctx context.Context, company *models.Company
 		DocumentID uint   `json:"documentID"`
 	}
 	if len(res.Choices) == 0 {
-		return nil, 0, "", fmt.Errorf("no choices returned: %v", res)
+		return nil, 0, "", fmt.Errorf("no choices returned: %v", string(b))
 	}
 	m := res.Choices[0].Message
 	if m.FunctionCall != nil {
