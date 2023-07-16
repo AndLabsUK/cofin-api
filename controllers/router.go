@@ -19,7 +19,8 @@ func (r Router) RegisterRoutes(router gin.IRouter) {
 	//
 	router.GET("/health", r.HealthController.Status)
 	router.GET("/companies", r.CompaniesController.GetCompanies)
-	router.GET("/companies/:ticker", r.CompaniesController.GetCompany)
+	router.GET("/companies/:company_id", r.CompaniesController.GetCompany)
+	router.GET("/companies/:company_id/documents", r.CompaniesController.GetCompanyDocuments)
 	router.POST("/auth", r.AuthController.SignIn)
 
 	//

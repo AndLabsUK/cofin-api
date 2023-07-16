@@ -217,7 +217,7 @@ func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing sec_api.List
 // processes and stores them.
 func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.Company, splitter *retrieval.Splitter, store vectorstores.VectorStore, filingKind models.SourceKind) error {
 	// Get the most recent document of the kind for the company.
-	document, err := models.GetMostRecentCompanyDocumentOfKind(db, company.ID, filingKind)
+	document, err := models.GetCompanyDocumentsOfKindInverseChronological(db, company.ID, filingKind)
 	if err != nil {
 		return fmt.Errorf("failed to fetchDocuments most recent document for %v (%v): %w\n", company.Name, company.Ticker, err)
 	}

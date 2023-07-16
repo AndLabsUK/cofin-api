@@ -94,8 +94,9 @@ func createServer(db *gorm.DB) *gin.Engine {
 			Logger: logger.With("controller", "users"),
 		},
 		PaymentsController: &controllers.PaymentsController{
-			DB:     db,
-			Logger: logger.With("controller", "payments"),
+			DB:        db,
+			Logger:    logger.With("controller", "payments"),
+			StripeAPI: stripe_api.NewStripeAPI(),
 		},
 	}
 
