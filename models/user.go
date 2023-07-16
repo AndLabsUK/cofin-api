@@ -2,12 +2,11 @@ package models
 
 import (
 	"errors"
-	"math"
 
 	"gorm.io/gorm"
 )
 
-const MAX_MESSAGES_UNPAID = 3
+const MAX_MESSAGES_UNPAID int64 = 3
 
 type User struct {
 	Generic
@@ -17,7 +16,7 @@ type User struct {
 	FirebaseSubjectID         string `gorm:"unique" json:"-"`
 	StripeCustomerID          string `gorm:"unique" json:"-"`
 	IsSubscribed              bool   `gorm:"not null; default:false" json:"is_subscribed"`
-	RemainingMessageAllowance uint   `gorm:"-" sql:"-" json:"remaining_message_allowance"`
+	RemainingMessageAllowance int64  `gorm:"-" sql:"-" json:"remaining_message_allowance"`
 }
 
 func GetUserByID(db *gorm.DB, userID uint) (*User, error) {
@@ -77,11 +76,11 @@ func CreateUser(db *gorm.DB, email, fullName, stripeCustomerID, firebaseSubjectI
 // Set remaining message allowance counter on the user object.
 func setMessageAllowance(db *gorm.DB, user *User) error {
 	if user.IsSubscribed {
-		user.RemainingMessageAllowance = math.MaxUint
+		user.RemainingMessageAllowance = -1
 	} else if messageCount, err := CountUserMessages(db, user.ID); err != nil {
 		return err
 	} else {
-		user.RemainingMessageAllowance = MAX_MESSAGES_UNPAID - uint(messageCount)
+		user.RemainingMessageAllowance = MAX_MESSAGES_UNPAID - messageCount
 	}
 
 	return nil
