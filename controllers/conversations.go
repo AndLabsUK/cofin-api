@@ -37,8 +37,8 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		return
 	}
 
-	message := models.Message{}
-	err = c.BindJSON(&message)
+	userMessage := models.Message{}
+	err = c.BindJSON(&userMessage)
 	if err != nil {
 		RespondBadRequestErr(c, []error{err})
 		return
@@ -55,7 +55,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		RespondCustomStatusErr(c, http.StatusNotFound, []error{ErrUnknownCompany})
 		return
 	}
-	cc.Logger.Infow(fmt.Sprintf("Answering user message: %v", message.Text), "userID", user.ID, "companyID", company.ID)
+	cc.Logger.Infow(fmt.Sprintf("Answering user message: %v", userMessage.Text), "userID", user.ID, "companyID", company.ID)
 
 	messageHistory, err := models.GetMessagesForCompanyInverseChronological(cc.DB, user.ID, company.ID, 0, 6)
 	if err != nil {
@@ -63,7 +63,6 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		RespondInternalErr(c)
 	}
 	messageHistory = reverseMessageArray(messageHistory)
-	messageHistory = append(messageHistory, message)
 
 	ticker := company.Ticker
 	retriever, err := retrieval.NewRetriever(cc.DB, company.ID)
@@ -86,14 +85,14 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		return
 	}
 
-	conversation, err := cc.Generator.CondenseConversation(c.Request.Context(), company, messageHistory)
+	conversation, err := cc.Generator.CondenseConversation(c.Request.Context(), company, messageHistory, userMessage.Text)
 	if err != nil {
 		cc.Logger.Errorf("Error condensing conversation: %w", err)
 		RespondInternalErr(c)
 	}
 	cc.Logger.Infow(fmt.Sprintf("Condensed the conversation to:\n%v", conversation), "userID", user.ID, "companyID", company.ID)
 
-	earlyResponse, documentID, query, err := cc.Generator.CreateRetrieval(c.Request.Context(), company, documents, conversation, message.Text)
+	earlyResponse, documentID, query, err := cc.Generator.CreateRetrieval(c.Request.Context(), company, documents, conversation, userMessage.Text)
 	if err != nil {
 		cc.Logger.Errorf("Error creating retrieval: %w", err)
 		RespondInternalErr(c)
@@ -101,7 +100,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 	}
 	if earlyResponse != nil {
 		cc.Logger.Infow(fmt.Sprintf("Early response \"%v\" for user messsage", *earlyResponse), "userID", user.ID, "companyID", company.ID)
-		aiMessage, err := SaveMessages(cc.DB, user.ID, company.ID, message.Text, *earlyResponse, []models.Source{})
+		aiMessage, err := SaveMessages(cc.DB, user.ID, company.ID, userMessage.Text, *earlyResponse, []models.Source{})
 		if err != nil {
 			cc.Logger.Errorf("Error saving messages: %w", err)
 			RespondInternalErr(c)
@@ -135,7 +134,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		OriginURL: document.OriginURL,
 	})
 
-	response, err := cc.Generator.Continue(c.Request.Context(), company, conversation, message.Text, document, chunks)
+	response, err := cc.Generator.Continue(c.Request.Context(), company, conversation, userMessage.Text, document, chunks)
 	if err != nil {
 		cc.Logger.Errorf("Error generating AI response: %w", err)
 		RespondInternalErr(c)
@@ -143,7 +142,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 	}
 	cc.Logger.Infow(fmt.Sprintf("Generated response: %v", response), "userID", user.ID, "companyID", company.ID)
 
-	aiMessage, err := SaveMessages(cc.DB, user.ID, company.ID, message.Text, response, sources)
+	aiMessage, err := SaveMessages(cc.DB, user.ID, company.ID, userMessage.Text, response, sources)
 	if err != nil {
 		cc.Logger.Errorf("Error saving messages: %w", err)
 		RespondInternalErr(c)

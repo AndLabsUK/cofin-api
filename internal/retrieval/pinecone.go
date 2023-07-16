@@ -46,7 +46,7 @@ func StoreChunks(store vectorstores.VectorStore, documentID uint, chunks []schem
 	}
 
 	errs, ctx := errgroup.WithContext(context.Background())
-	for i := 0; i <= len(chunks); i += BATCH_SIZE {
+	for i := 0; i < len(chunks); i += BATCH_SIZE {
 		end := i + BATCH_SIZE
 		if end > len(chunks) {
 			end = len(chunks)

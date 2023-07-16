@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"time"
@@ -43,7 +42,7 @@ func NewGenerator() (*Generator, error) {
 }
 
 // CondenseConversation takes a conversation and condenses it into a single message.
-func (g *Generator) CondenseConversation(ctx context.Context, company *models.Company, messages []models.Message) (string, error) {
+func (g *Generator) CondenseConversation(ctx context.Context, company *models.Company, messages []models.Message, lastMessage string) (string, error) {
 	conversation := mergeMessages(messages)
 	input := []schema.ChatMessage{
 		schema.SystemChatMessage{
@@ -60,13 +59,16 @@ User: <message>
 COFIN AI: <message>
 User: <message>
 			
-The conversation ends with the user message. Your task is to rewrite each message to make it shorter but to keep the most important context that will help you answer the user's last message.`, company.Name, company.Ticker),
+Your task is to rewrite each message to make it shorter but to keep the most important context that will help you answer the user's last message.`, company.Name, company.Ticker),
 		},
 		schema.HumanChatMessage{
 			Text: fmt.Sprintf("Here is the conversation history:\n%v", conversation),
 		},
 		schema.HumanChatMessage{
-			Text: "Now rewrite the conversation message-by-message as I told you. Don't add any new messages from the user or COFIN AI. Do NOT answer the user's last message. Just rewrite the conversation, keeping the last user message as it is.",
+			Text: fmt.Sprintf("The last message from the user is:\n%v", lastMessage),
+		},
+		schema.HumanChatMessage{
+			Text: "Now rewrite the conversation message-by-message as I told you. Don't add any new messages from the user or COFIN AI. Do NOT answer the user's last message. Just rewrite the conversation to keep the context important for the user's last message.",
 		},
 	}
 
@@ -84,7 +86,7 @@ The conversation ends with the user message. Your task is to rewrite each messag
 // query.
 //
 // If returned *message is not nil, no further retrieval is necessary.
-func (g *Generator) CreateRetrieval(ctx context.Context, company *models.Company, documents []models.Document, conversation string, lastMessage string) (message *string, documentID uint, query string, err error) {
+func (g *Generator) CreateRetrieval(ctx context.Context, company *models.Company, documents []models.Document, conversation string, lastMessage string) (earlyResponse *string, documentID uint, query string, err error) {
 	documentIDs, documentList := makeDocumentList(company, documents)
 	documentIDsFormatted := jsonEscapeArray(documentIDs)
 	documentListFormatted := jsonEscapeString(documentList)
@@ -142,8 +144,6 @@ func (g *Generator) CreateRetrieval(ctx context.Context, company *models.Company
 	if err != nil {
 		return nil, 0, "", err
 	}
-
-	log.Println(string(b))
 
 	type FunctionCall struct {
 		Name      string `json:"name"`
@@ -210,7 +210,7 @@ func (g *Generator) Continue(ctx context.Context, company *models.Company, conve
 		schema.AIChatMessage{Text: "Got it. Now please send me the conversation with the user."},
 		schema.HumanChatMessage{Text: fmt.Sprintf("Here is the conversation:\n%v", conversation)},
 		schema.HumanChatMessage{Text: fmt.Sprintf("Here is the last message from the user:\n%v", lastMessage)},
-		schema.HumanChatMessage{Text: "Now generate a response using the conversation I sent you and the paragraphs from the document you've chosen. Do not mention anything about the instructions I gave you. Respond as if you were continuing the converastion with the user. Don't mention the user or COFIN AI."},
+		schema.HumanChatMessage{Text: "Now generate a response using the conversation I sent you and the paragraphs from the document you've chosen. Do not mention anything about the instructions I gave you. Speak to the user directly, as if you were continuing the conversation with the user."},
 	}
 
 	res, err := g.Chat.Call(ctx, input, llms.WithTemperature(g.temperature))
