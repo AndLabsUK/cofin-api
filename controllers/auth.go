@@ -18,11 +18,12 @@ import (
 )
 
 type AuthController struct {
-	DB     *gorm.DB
-	Logger *zap.SugaredLogger
+	DB        *gorm.DB
+	Logger    *zap.SugaredLogger
+	StripeAPI stripe_api.StripeAPI
 }
 
-func (a AuthController) SignIn(c *gin.Context) {
+func (ac AuthController) SignIn(c *gin.Context) {
 	type signInParams struct {
 		JWTToken string `json:"jwt_token"`
 	}
@@ -76,46 +77,41 @@ func (a AuthController) SignIn(c *gin.Context) {
 		RespondBadRequestErr(c, []error{ErrInvalidToken})
 		return
 	}
-
 	email := claims["email"].(string)
-	name := claims["name"].(string)
-	sub := claims["sub"].(string)
+	fullName := claims["name"].(string)
+	firebaseSubjectID := claims["sub"].(string)
 
-	var user models.User
-	// TODO: rewrite as a transaction.
-	tx := a.DB.First(&user, "firebase_subject_id = ?", sub)
-	if tx.Error != nil {
-		if tx.Error == gorm.ErrRecordNotFound {
-			user = models.User{
-				Email:             email,
-				FullName:          name,
-				FirebaseSubjectId: sub,
-				IsSubscribed:      false,
-			}
-
-			result := a.DB.Create(&user)
-			if result.Error != nil {
-				a.Logger.Errorf("Error creating user: %w", result.Error)
-				RespondInternalErr(c)
-				return
-			}
-		} else {
-			a.Logger.Errorf("Error getting user: %w", tx.Error)
-			RespondInternalErr(c)
-			return
+	var user *models.User
+	var accessToken *models.AccessToken
+	if err := ac.DB.Transaction(func(tx *gorm.DB) (err error) {
+		stripeCustomerID, err := ac.StripeAPI.CreateCustomer(email, fullName)
+		if err != nil {
+			return err
 		}
-	}
 
-	stripe := stripe_api.StripeAPI{}
-	go stripe.CreateCustomer(&user, a.DB)
+		user, err = models.GetUserByFirebaseSubjectID(tx, firebaseSubjectID)
+		if err != nil {
+			return err
+		} else if user != nil {
+			return nil
+		}
 
-	accessToken := models.AccessToken{
-		UserID: user.ID,
-		Token:  generateRandomString(128),
-	}
-	result := a.DB.Create(&accessToken)
-	if result.Error != nil {
-		a.Logger.Errorf("Error creating access token: %w", result.Error)
+		ac.Logger.Info("Creating user")
+		user, err = models.CreateUser(tx, email, fullName, stripeCustomerID, firebaseSubjectID)
+		if err != nil {
+			return err
+		}
+
+		ac.Logger.Infow("Creating access token", "userID", user.ID)
+		accessToken, err = models.CreateAccessToken(tx, user.ID, generateRandomString(128))
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		ac.Logger.Errorf("Error creating user: %w", err)
+		RespondInternalErr(c)
 		return
 	}
 

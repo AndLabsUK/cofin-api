@@ -45,7 +45,7 @@ func (rs RealStonks) GetMarketData(ticker string) (*TickerInformation, error) {
 	}
 
 	ti := &TickerInformation{
-		Currency:    "USD", //TODO: Upgrade when non-US stocks are supported
+		Currency:    "USD",
 		Price:       d.Price,
 		Change:      d.ChangePercentage,
 		TotalVolume: convertToFloat(d.TotalVolume),

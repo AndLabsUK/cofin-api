@@ -3,49 +3,48 @@ package stripe_api
 import (
 	"cofin/models"
 	"errors"
+	"os"
+
 	"github.com/stripe/stripe-go/v74"
 	"github.com/stripe/stripe-go/v74/checkout/session"
 	"github.com/stripe/stripe-go/v74/customer"
 	"github.com/stripe/stripe-go/v74/price"
-	"gorm.io/gorm"
-	"os"
 )
 
-type StripeAPI struct{}
+type StripeAPI struct {
+	apiKey    string
+	productID string
+	domain    string
+}
 
-func (s StripeAPI) CreateCustomer(user *models.User, db *gorm.DB) {
-	stripe.Key = os.Getenv("STRIPE_API_KEY")
-
-	if user.StripeCustomerId != "" {
-		return
-	}
-
-	params := &stripe.CustomerParams{
-		Name:  &user.FullName,
-		Email: &user.Email,
-	}
-
-	c, err := customer.New(params)
-	if err != nil {
-		//log err
-		return
-	}
-
-	user.StripeCustomerId = c.ID
-	result := db.Save(&user)
-	if result.Error != nil {
-		//TODO: Log error
-		return
+func NewStripeAPI() StripeAPI {
+	return StripeAPI{
+		apiKey:    os.Getenv("STRIPE_API_KEY"),
+		domain:    os.Getenv("UI_DOMAIN"),
+		productID: os.Getenv("STRIPE_PRODUCT_ID"),
 	}
 }
 
+func (s StripeAPI) CreateCustomer(email, fullName string) (stripeCustomerID string, err error) {
+	stripe.Key = s.apiKey
+	params := &stripe.CustomerParams{
+		Name:  &fullName,
+		Email: &email,
+	}
+
+	stripeCustomer, err := customer.New(params)
+	if err != nil {
+		return "", err
+	}
+
+	return stripeCustomer.ID, nil
+}
+
 func (s StripeAPI) GetPrices() []*stripe.Price {
-	stripe.Key = os.Getenv("STRIPE_API_KEY")
-
-	productId := os.Getenv("STRIPE_PRODUCT_ID")
-
+	stripe.Key = s.apiKey
+	productID := s.productID
 	params := &stripe.PriceListParams{
-		Product: &productId,
+		Product: &productID,
 	}
 
 	var stripePrices []*stripe.Price
@@ -58,33 +57,31 @@ func (s StripeAPI) GetPrices() []*stripe.Price {
 	return stripePrices
 }
 
-func (s StripeAPI) CreateCheckout(user *models.User, priceId *string) (*string, error) {
-	stripe.Key = os.Getenv("STRIPE_API_KEY")
-
-	if len(user.StripeCustomerId) == 0 {
-		return nil, errors.New("user is not registered on StripeAPI")
-	}
-
-	stripePrice, err := price.Get(*priceId, nil)
+func (s StripeAPI) CreateCheckout(user *models.User, productID string) (*string, error) {
+	stripe.Key = s.apiKey
+	stripePrice, err := price.Get(productID, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	if stripePrice.Product.ID != os.Getenv("STRIPE_PRODUCT_ID") {
+	if stripePrice.Product.ID != s.productID {
 		return nil, errors.New("specified price does not belong to specified plan")
 	}
 
 	params := &stripe.CheckoutSessionParams{
-		Customer: &user.StripeCustomerId,
+		Customer: &user.StripeCustomerID,
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			{
-				Price:    stripe.String(*priceId),
+				Price:    stripe.String(productID),
 				Quantity: stripe.Int64(1),
 			},
 		},
 		Mode:       stripe.String("subscription"),
-		CancelURL:  stripe.String("https://" + os.Getenv("UI_DOMAIN") + "/?payment=cancelled"),
-		SuccessURL: stripe.String("https://" + os.Getenv("UI_DOMAIN") + "/?payment=success"),
+		CancelURL:  stripe.String("https://" + s.domain + "/?payment=cancelled"),
+		SuccessURL: stripe.String("https://" + s.domain + "/?payment=success"),
+		ConsentCollection: &stripe.CheckoutSessionConsentCollectionParams{
+			TermsOfService: stripe.String("required"),
+		},
 	}
 
 	stripeCheckoutSession, err := session.New(params)

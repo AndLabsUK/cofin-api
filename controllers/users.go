@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"cofin/models"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -13,10 +14,18 @@ type UsersController struct {
 	Logger *zap.SugaredLogger
 }
 
-func (u UsersController) GetCurrentUser(c *gin.Context) {
-	var user models.User
-	userId := CurrentUserId(c)
-	u.DB.First(&user, userId)
+func (uc UsersController) GetCurrentUser(c *gin.Context) {
+	user, err := models.GetUserByID(uc.DB, CurrentUserID(c))
+	if err != nil {
+		uc.Logger.Errorf("Error querying users: %w", err)
+		RespondInternalErr(c)
+		return
+	}
+
+	if user == nil {
+		RespondCustomStatusErr(c, http.StatusNotFound, []error{ErrUnknownUser})
+		return
+	}
 
 	RespondOK(c, user)
 }

@@ -17,7 +17,7 @@ func RequireAuth(c *gin.Context) {
 			var accessToken models.AccessToken
 			tx := db.First(&accessToken, "token = ?", token)
 			if tx.Error == nil {
-				c.Set("userId", accessToken.UserID)
+				c.Set("userID", accessToken.UserID)
 				c.Next()
 				return
 			}
@@ -27,13 +27,13 @@ func RequireAuth(c *gin.Context) {
 	RespondCustomStatusErr(c, http.StatusForbidden, []error{ErrAccessDenied})
 }
 
-func CurrentUserId(c *gin.Context) uint {
-	return c.GetUint("userId")
+func CurrentUserID(c *gin.Context) uint {
+	return c.GetUint("userID")
 }
 
 func CurrentUser(c *gin.Context) *models.User {
-	userId := CurrentUserId(c)
-	if userId == 0 {
+	userID := CurrentUserID(c)
+	if userID == 0 {
 		return nil
 	}
 
@@ -42,12 +42,6 @@ func CurrentUser(c *gin.Context) *models.User {
 		return nil
 	}
 
-	var user models.User
-	tx := db.First(&user, userId)
-
-	if tx.Error != nil {
-		return nil
-	}
-
-	return &user
+	user, _ := models.GetUserByID(db, userID)
+	return user
 }
