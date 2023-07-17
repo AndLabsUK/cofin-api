@@ -184,9 +184,6 @@ github.com/jackc/pgx/v5/pgconn/internal/ctxwatch
 github.com/jackc/pgx/v5/pgproto3
 github.com/jackc/pgx/v5/pgtype
 github.com/jackc/pgx/v5/stdlib
-# github.com/jaytaylor/html2text v0.0.0-20230321000545-74c2419ad056
-## explicit
-github.com/jaytaylor/html2text
 # github.com/jinzhu/inflection v1.0.0
 ## explicit
 github.com/jinzhu/inflection
@@ -208,9 +205,6 @@ github.com/leodido/go-urn
 # github.com/mattn/go-isatty v0.0.19
 ## explicit; go 1.15
 github.com/mattn/go-isatty
-# github.com/mattn/go-runewidth v0.0.9
-## explicit; go 1.9
-github.com/mattn/go-runewidth
 # github.com/microcosm-cc/bluemonday v1.0.24
 ## explicit; go 1.19
 github.com/microcosm-cc/bluemonday
@@ -221,9 +215,6 @@ github.com/modern-go/concurrent
 # github.com/modern-go/reflect2 v1.0.2
 ## explicit; go 1.12
 github.com/modern-go/reflect2
-# github.com/olekukonko/tablewriter v0.0.5
-## explicit; go 1.12
-github.com/olekukonko/tablewriter
 # github.com/pelletier/go-toml/v2 v2.0.8
 ## explicit; go 1.16
 github.com/pelletier/go-toml/v2
@@ -239,16 +230,15 @@ github.com/pinecone-io/go-pinecone/pinecone_grpc
 github.com/pkoukk/tiktoken-go
 # github.com/rogpeppe/go-internal v1.11.0
 ## explicit; go 1.19
-# github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf
-## explicit
-github.com/ssor/bom
-# github.com/stripe/stripe-go/v74 v74.25.0
+# github.com/stripe/stripe-go/v74 v74.26.0
 ## explicit; go 1.13
 github.com/stripe/stripe-go/v74
+github.com/stripe/stripe-go/v74/billingportal/session
 github.com/stripe/stripe-go/v74/checkout/session
 github.com/stripe/stripe-go/v74/customer
 github.com/stripe/stripe-go/v74/form
 github.com/stripe/stripe-go/v74/price
+github.com/stripe/stripe-go/v74/webhook
 # github.com/tmc/langchaingo v0.0.0-20230630075547-a90d3dfb104f
 ## explicit; go 1.20
 github.com/tmc/langchaingo/documentloaders

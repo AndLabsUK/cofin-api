@@ -22,6 +22,7 @@ func (r Router) RegisterRoutes(router gin.IRouter) {
 	router.GET("/companies/:company_id", r.CompaniesController.GetCompany)
 	router.GET("/companies/:company_id/documents", r.CompaniesController.GetCompanyDocuments)
 	router.POST("/auth", r.AuthController.SignIn)
+	router.POST("/payments/webhook", r.PaymentsController.PostEvent)
 
 	//
 	// Authorized Requests
@@ -34,5 +35,6 @@ func (r Router) RegisterRoutes(router gin.IRouter) {
 	conversations.POST("/:company_id", r.ConversationsController.PostConversation)
 
 	authorized.GET("/payments/prices", r.PaymentsController.GetPrices)
-	authorized.POST("/payments/checkout", r.PaymentsController.Checkout)
+	authorized.POST("/payments/checkout", r.PaymentsController.PostCheckout)
+	authorized.POST("/payments/portal", r.PaymentsController.PostBillingPortal)
 }

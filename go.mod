@@ -6,13 +6,12 @@ go 1.20
 require (
 	github.com/gin-gonic/gin v1.9.1
 	github.com/golang-jwt/jwt/v5 v5.0.0
-	github.com/google/uuid v1.3.0
 	github.com/hashicorp/go-retryablehttp v0.7.4
-	github.com/jaytaylor/html2text v0.0.0-20230321000545-74c2419ad056
 	github.com/joho/godotenv v1.5.1
-	github.com/stripe/stripe-go/v74 v74.25.0
+	github.com/stripe/stripe-go/v74 v74.26.0
 	github.com/tmc/langchaingo v0.0.0-20230630075547-a90d3dfb104f
 	go.uber.org/zap v1.24.0
+	golang.org/x/exp v0.0.0-20220303212507-bbda1eaf7a17
 	golang.org/x/sync v0.3.0
 	gorm.io/driver/postgres v1.5.2
 	gorm.io/gorm v1.25.2
@@ -41,6 +40,7 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/s2a-go v0.1.3 // indirect
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
 	github.com/googleapis/gax-go/v2 v2.8.0 // indirect
 	github.com/gorilla/css v1.0.0 // indirect
@@ -55,16 +55,13 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.5 // indirect
 	github.com/leodido/go-urn v1.2.4 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
-	github.com/mattn/go-runewidth v0.0.9 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.24 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.8 // indirect
 	github.com/pinecone-io/go-pinecone v0.3.0 // indirect
 	github.com/pkoukk/tiktoken-go v0.1.4 // indirect
 	github.com/rogpeppe/go-internal v1.11.0 // indirect
-	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.11 // indirect
 	go.opencensus.io v0.24.0 // indirect
@@ -72,7 +69,6 @@ require (
 	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/arch v0.3.0 // indirect
 	golang.org/x/crypto v0.10.0 // indirect
-	golang.org/x/exp v0.0.0-20220303212507-bbda1eaf7a17 // indirect
 	golang.org/x/net v0.11.0 // indirect
 	golang.org/x/oauth2 v0.8.0 // indirect
 	golang.org/x/sys v0.9.0 // indirect
