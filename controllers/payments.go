@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"cofin/internal/amplitude"
 	"cofin/internal/stripe_api"
 	"cofin/models"
 	"encoding/json"
@@ -18,6 +19,7 @@ type PaymentsController struct {
 	DB        *gorm.DB
 	Logger    *zap.SugaredLogger
 	StripeAPI stripe_api.StripeAPI
+	Amplitude amplitude.Amplitude
 }
 
 func (pc PaymentsController) GetPrices(c *gin.Context) {
@@ -45,6 +47,10 @@ func (pc PaymentsController) PostCheckout(c *gin.Context) {
 	}
 
 	RespondOK(c, checkoutUrl)
+
+	pc.Amplitude.TrackEvent(user.ID, "user_purchase_checkout", map[string]interface{}{
+		"stripe_price_id": payload.StripePriceID,
+	})
 }
 
 func (pc PaymentsController) PostEvent(c *gin.Context) {
@@ -63,12 +69,19 @@ func (pc PaymentsController) PostEvent(c *gin.Context) {
 	}
 
 	switch event.Type {
-	case "customer.subscription.created":
+	case "customer.subscription.created", "customer.subscription.resumed":
 		var subscription stripe.Subscription
 		err := json.Unmarshal(event.Data.Raw, &subscription)
 		if err != nil {
 			pc.Logger.Errorf("Could not unmarshal Stripe subscription: %v", err)
 			RespondBadRequestErr(c, []error{ErrBadInput})
+			return
+		}
+
+		eventProductId := subscription.Items.Data[0].Price.Product.ID
+		if eventProductId != pc.StripeAPI.ProductID {
+			pc.Logger.Infof("Received a webhook for an unrelated product with ID %s", eventProductId)
+			RespondOK(c, nil)
 			return
 		}
 
@@ -77,7 +90,13 @@ func (pc PaymentsController) PostEvent(c *gin.Context) {
 			RespondInternalErr(c)
 			return
 		}
-	case "customer.subscription.deleted":
+
+		if event.Type == "customer.subscription.created" {
+			user, _ := models.GetUserByStripeClientID(pc.DB, subscription.Customer.ID)
+			pc.Amplitude.TrackEvent(user.ID, "user_purchase_complete", nil)
+		}
+
+	case "customer.subscription.deleted", "customer.subscription.paused":
 		var subscription stripe.Subscription
 		err := json.Unmarshal(event.Data.Raw, &subscription)
 		if err != nil {
@@ -86,10 +105,22 @@ func (pc PaymentsController) PostEvent(c *gin.Context) {
 			return
 		}
 
+		eventProductId := subscription.Items.Data[0].Price.Product.ID
+		if eventProductId != pc.StripeAPI.ProductID {
+			pc.Logger.Infof("Received a webhook for an unrelated product with ID %s", eventProductId)
+			RespondOK(c, nil)
+			return
+		}
+
 		if err := models.SetUserSubscriptionByStripeCustomerID(pc.DB, subscription.Customer.ID, false); err != nil {
 			pc.Logger.Errorf("Could not set user subscription: %v", err)
 			RespondInternalErr(c)
 			return
+		}
+
+		if event.Type == "customer.subscription.deleted" {
+			user, _ := models.GetUserByStripeClientID(pc.DB, subscription.Customer.ID)
+			pc.Amplitude.TrackEvent(user.ID, "user_purchase_exipire", nil)
 		}
 	default:
 		fmt.Fprintf(os.Stderr, "Unhandled event type: %s\n", event.Type)

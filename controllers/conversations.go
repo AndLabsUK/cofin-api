@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"cofin/internal/amplitude"
 	"cofin/internal/retrieval"
 	"cofin/models"
 	"fmt"
@@ -21,6 +22,7 @@ type ConversationsController struct {
 	DB        *gorm.DB
 	Logger    *zap.SugaredLogger
 	Generator *retrieval.Generator
+	Amplitude amplitude.Amplitude
 }
 
 func (cc ConversationsController) PostConversation(c *gin.Context) {
@@ -157,6 +159,10 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 	}
 
 	RespondOK(c, aiMessage)
+
+	cc.Amplitude.TrackEvent(user.ID, "user_sent_message", map[string]interface{}{
+		"company_ticker": company.Ticker,
+	})
 }
 
 func SaveMessages(db *gorm.DB, userID, companyID uint, userMessage, aiMessage string, sources []models.Source) (*models.Message, error) {
