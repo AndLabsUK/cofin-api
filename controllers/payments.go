@@ -48,7 +48,7 @@ func (pc PaymentsController) PostCheckout(c *gin.Context) {
 
 	RespondOK(c, checkoutUrl)
 
-	pc.Amplitude.TrackEvent(user.ID, "user_purchase_checkout", map[string]interface{}{
+	pc.Amplitude.TrackEvent(user.FirebaseSubjectID, "user_purchase_checkout", map[string]interface{}{
 		"stripe_price_id": payload.StripePriceID,
 	})
 }
@@ -93,7 +93,7 @@ func (pc PaymentsController) PostEvent(c *gin.Context) {
 
 		if event.Type == "customer.subscription.created" {
 			user, _ := models.GetUserByStripeClientID(pc.DB, subscription.Customer.ID)
-			pc.Amplitude.TrackEvent(user.ID, "user_purchase_complete", nil)
+			pc.Amplitude.TrackEvent(user.FirebaseSubjectID, "user_purchase_complete", nil)
 		}
 
 	case "customer.subscription.deleted", "customer.subscription.paused":
@@ -120,7 +120,7 @@ func (pc PaymentsController) PostEvent(c *gin.Context) {
 
 		if event.Type == "customer.subscription.deleted" {
 			user, _ := models.GetUserByStripeClientID(pc.DB, subscription.Customer.ID)
-			pc.Amplitude.TrackEvent(user.ID, "user_purchase_exipire", nil)
+			pc.Amplitude.TrackEvent(user.FirebaseSubjectID, "user_purchase_exipire", nil)
 		}
 	default:
 		fmt.Fprintf(os.Stderr, "Unhandled event type: %s\n", event.Type)

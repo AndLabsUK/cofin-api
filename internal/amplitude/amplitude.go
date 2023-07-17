@@ -3,7 +3,6 @@ package amplitude
 import (
 	"github.com/amplitude/analytics-go/amplitude"
 	"os"
-	"strconv"
 )
 
 type Amplitude struct {
@@ -20,9 +19,9 @@ func Initialize() Amplitude {
 	}
 }
 
-func (a Amplitude) TrackEvent(userId uint, eventType string, eventProperties map[string]interface{}) {
+func (a Amplitude) TrackEvent(userId string, eventType string, eventProperties map[string]interface{}) {
 	a.Client.Track(amplitude.Event{
-		UserID:          strconv.FormatUint(uint64(userId), 10),
+		UserID:          userId,
 		EventType:       eventType,
 		EventProperties: eventProperties,
 	})

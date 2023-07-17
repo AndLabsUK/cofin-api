@@ -100,7 +100,7 @@ func (ac AuthController) SignIn(c *gin.Context) {
 				return err
 			}
 
-			ac.Amplitude.TrackEvent(user.ID, "user_login", nil)
+			ac.Amplitude.TrackEvent(user.FirebaseSubjectID, "user_login", nil)
 
 			return nil
 		}
@@ -111,7 +111,7 @@ func (ac AuthController) SignIn(c *gin.Context) {
 			return err
 		}
 
-		ac.Amplitude.TrackEvent(user.ID, "user_created", nil)
+		ac.Amplitude.TrackEvent(user.FirebaseSubjectID, "user_created", nil)
 
 		ac.Logger.Infow("Creating access token", "userID", user.ID)
 		accessToken, err = models.CreateAccessToken(tx, user.ID, generateRandomString(128))
@@ -119,7 +119,7 @@ func (ac AuthController) SignIn(c *gin.Context) {
 			return err
 		}
 
-		ac.Amplitude.TrackEvent(user.ID, "user_login", nil)
+		ac.Amplitude.TrackEvent(user.FirebaseSubjectID, "user_login", nil)
 
 		return nil
 	}); err != nil {

@@ -160,7 +160,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 
 	RespondOK(c, aiMessage)
 
-	cc.Amplitude.TrackEvent(user.ID, "user_sent_message", map[string]interface{}{
+	cc.Amplitude.TrackEvent(user.FirebaseSubjectID, "user_sent_message", map[string]interface{}{
 		"company_ticker": company.Ticker,
 	})
 }
