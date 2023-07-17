@@ -40,6 +40,23 @@ func SetUserSubscriptionByStripeCustomerID(db *gorm.DB, stripeCustomerID string,
 	return db.Model(&User{}).Where("stripe_customer_id = ?", stripeCustomerID).Update("is_subscribed", isSubscribed).Error
 }
 
+func GetUserByStripeClientID(db *gorm.DB, stripeCustomerID string) (*User, error) {
+	var user User
+	if err := db.First(&user, "stripe_customer_id = ?", stripeCustomerID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		} else {
+			return nil, err
+		}
+	}
+
+	if err := setMessageAllowance(db, &user); err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
 func GetUserByFirebaseSubjectID(db *gorm.DB, firebaseSubjectID string) (*User, error) {
 	var user User
 	if err := db.First(&user, "firebase_subject_id = ?", firebaseSubjectID).Error; err != nil {

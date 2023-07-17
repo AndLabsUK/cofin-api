@@ -4,6 +4,7 @@ module cofin
 go 1.20
 
 require (
+	github.com/amplitude/analytics-go v1.0.1
 	github.com/gin-gonic/gin v1.9.1
 	github.com/golang-jwt/jwt/v5 v5.0.0
 	github.com/hashicorp/go-retryablehttp v0.7.4

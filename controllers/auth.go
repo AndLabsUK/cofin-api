@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"cofin/internal/amplitude"
 	"cofin/internal/google_pki"
 	"cofin/internal/stripe_api"
 	"cofin/models"
@@ -21,6 +22,7 @@ type AuthController struct {
 	DB        *gorm.DB
 	Logger    *zap.SugaredLogger
 	StripeAPI stripe_api.StripeAPI
+	Amplitude amplitude.Amplitude
 }
 
 func (ac AuthController) SignIn(c *gin.Context) {
@@ -97,6 +99,9 @@ func (ac AuthController) SignIn(c *gin.Context) {
 			if err != nil {
 				return err
 			}
+
+			ac.Amplitude.TrackEvent(user.ID, "user_login", nil)
+
 			return nil
 		}
 
@@ -106,11 +111,15 @@ func (ac AuthController) SignIn(c *gin.Context) {
 			return err
 		}
 
+		ac.Amplitude.TrackEvent(user.ID, "user_created", nil)
+
 		ac.Logger.Infow("Creating access token", "userID", user.ID)
 		accessToken, err = models.CreateAccessToken(tx, user.ID, generateRandomString(128))
 		if err != nil {
 			return err
 		}
+
+		ac.Amplitude.TrackEvent(user.ID, "user_login", nil)
 
 		return nil
 	}); err != nil {

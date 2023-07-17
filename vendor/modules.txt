@@ -23,6 +23,17 @@ cloud.google.com/go/longrunning/autogen/longrunningpb
 # github.com/PuerkitoBio/goquery v1.8.1
 ## explicit; go 1.13
 github.com/PuerkitoBio/goquery
+# github.com/amplitude/analytics-go v1.0.1
+## explicit; go 1.17
+github.com/amplitude/analytics-go/amplitude
+github.com/amplitude/analytics-go/amplitude/constants
+github.com/amplitude/analytics-go/amplitude/internal
+github.com/amplitude/analytics-go/amplitude/loggers
+github.com/amplitude/analytics-go/amplitude/plugins/before
+github.com/amplitude/analytics-go/amplitude/plugins/destination
+github.com/amplitude/analytics-go/amplitude/plugins/destination/internal
+github.com/amplitude/analytics-go/amplitude/storages
+github.com/amplitude/analytics-go/amplitude/types
 # github.com/andybalholm/cascadia v1.3.1
 ## explicit; go 1.16
 github.com/andybalholm/cascadia

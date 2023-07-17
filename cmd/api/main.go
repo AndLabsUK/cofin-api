@@ -3,6 +3,7 @@ package main
 import (
 	"cofin/controllers"
 	"cofin/core"
+	"cofin/internal/amplitude"
 	"cofin/internal/retrieval"
 	"cofin/internal/stripe_api"
 	"cofin/models"
@@ -75,6 +76,7 @@ func createServer(db *gorm.DB) *gin.Engine {
 			DB:        db,
 			Logger:    logger.With("controller", "auth"),
 			StripeAPI: stripe_api.NewStripeAPI(),
+			Amplitude: amplitude.Initialize(),
 		},
 		HealthController: &controllers.HealthController{
 			DB:     db,
@@ -88,6 +90,7 @@ func createServer(db *gorm.DB) *gin.Engine {
 			DB:        db,
 			Logger:    logger.With("controller", "conversations"),
 			Generator: generator,
+			Amplitude: amplitude.Initialize(),
 		},
 		UsersController: &controllers.UsersController{
 			DB:     db,
@@ -97,6 +100,7 @@ func createServer(db *gorm.DB) *gin.Engine {
 			DB:        db,
 			Logger:    logger.With("controller", "payments"),
 			StripeAPI: stripe_api.NewStripeAPI(),
+			Amplitude: amplitude.Initialize(),
 		},
 	}
 

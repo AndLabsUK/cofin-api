@@ -15,7 +15,7 @@ import (
 
 type StripeAPI struct {
 	apiKey               string
-	productID            string
+	ProductID            string
 	domain               string
 	webhookSigningSecret string
 }
@@ -24,7 +24,7 @@ func NewStripeAPI() StripeAPI {
 	return StripeAPI{
 		apiKey:               os.Getenv("STRIPE_API_KEY"),
 		domain:               os.Getenv("UI_DOMAIN"),
-		productID:            os.Getenv("STRIPE_PRODUCT_ID"),
+		ProductID:            os.Getenv("STRIPE_PRODUCT_ID"),
 		webhookSigningSecret: os.Getenv("STRIPE_WEBHOOK_SIGNING_SECRET"),
 	}
 }
@@ -46,7 +46,7 @@ func (s StripeAPI) CreateCustomer(email, fullName string) (stripeCustomerID stri
 
 func (s StripeAPI) GetPrices() []*stripe.Price {
 	stripe.Key = s.apiKey
-	productID := s.productID
+	productID := s.ProductID
 	params := &stripe.PriceListParams{
 		Product: &productID,
 	}
@@ -68,7 +68,7 @@ func (s StripeAPI) CreateCheckout(user *models.User, productID string) (*string,
 		return nil, err
 	}
 
-	if stripePrice.Product.ID != s.productID {
+	if stripePrice.Product.ID != s.ProductID {
 		return nil, errors.New("specified price does not belong to specified plan")
 	}
 
