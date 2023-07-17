@@ -36,6 +36,10 @@ func GetUserByID(db *gorm.DB, userID uint) (*User, error) {
 	return &user, nil
 }
 
+func SetUserSubscriptionByStripeCustomerID(db *gorm.DB, stripeCustomerID string, isSubscribed bool) error {
+	return db.Model(&User{}).Where("stripe_customer_id = ?", stripeCustomerID).Update("is_subscribed", isSubscribed).Error
+}
+
 func GetUserByFirebaseSubjectID(db *gorm.DB, firebaseSubjectID string) (*User, error) {
 	var user User
 	if err := db.First(&user, "firebase_subject_id = ?", firebaseSubjectID).Error; err != nil {

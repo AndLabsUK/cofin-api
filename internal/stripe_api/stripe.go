@@ -6,22 +6,26 @@ import (
 	"os"
 
 	"github.com/stripe/stripe-go/v74"
-	"github.com/stripe/stripe-go/v74/checkout/session"
+	billingPortalSession "github.com/stripe/stripe-go/v74/billingportal/session"
+	checkoutSession "github.com/stripe/stripe-go/v74/checkout/session"
 	"github.com/stripe/stripe-go/v74/customer"
 	"github.com/stripe/stripe-go/v74/price"
+	"github.com/stripe/stripe-go/v74/webhook"
 )
 
 type StripeAPI struct {
-	apiKey    string
-	productID string
-	domain    string
+	apiKey               string
+	productID            string
+	domain               string
+	webhookSigningSecret string
 }
 
 func NewStripeAPI() StripeAPI {
 	return StripeAPI{
-		apiKey:    os.Getenv("STRIPE_API_KEY"),
-		domain:    os.Getenv("UI_DOMAIN"),
-		productID: os.Getenv("STRIPE_PRODUCT_ID"),
+		apiKey:               os.Getenv("STRIPE_API_KEY"),
+		domain:               os.Getenv("UI_DOMAIN"),
+		productID:            os.Getenv("STRIPE_PRODUCT_ID"),
+		webhookSigningSecret: os.Getenv("STRIPE_WEBHOOK_SIGNING_SECRET"),
 	}
 }
 
@@ -84,10 +88,29 @@ func (s StripeAPI) CreateCheckout(user *models.User, productID string) (*string,
 		},
 	}
 
-	stripeCheckoutSession, err := session.New(params)
+	stripeCheckoutSession, err := checkoutSession.New(params)
 	if err != nil {
 		return nil, err
 	}
 
 	return &stripeCheckoutSession.URL, nil
+}
+
+func (s StripeAPI) ConstructEvent(payload []byte, signature string) (stripe.Event, error) {
+	return webhook.ConstructEvent(payload, signature, s.webhookSigningSecret)
+}
+
+func (s StripeAPI) CreatePortal(user *models.User) (*string, error) {
+	stripe.Key = s.apiKey
+	params := &stripe.BillingPortalSessionParams{
+		Customer:  &user.StripeCustomerID,
+		ReturnURL: stripe.String("https://" + s.domain + "/?portal=success"),
+	}
+
+	stripePortalSession, err := billingPortalSession.New(params)
+	if err != nil {
+		return nil, err
+	}
+
+	return &stripePortalSession.URL, nil
 }
