@@ -51,13 +51,10 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		cc.Logger.Errorf("Error getting company: %w", err)
 		RespondInternalErr(c)
 		return
-	}
-
-	if company == nil {
+	} else if company == nil {
 		RespondCustomStatusErr(c, http.StatusNotFound, []error{ErrUnknownCompany})
 		return
 	}
-	cc.Logger.Infow(fmt.Sprintf("Answering user message: %v", userMessage.Text), "userID", user.ID, "companyID", company.ID)
 
 	messageHistory, err := models.GetMessagesForCompanyInverseChronological(cc.DB, user.ID, company.ID, 0, 6)
 	if err != nil {
@@ -66,12 +63,12 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 	}
 	messageHistory = reverseMessageArray(messageHistory)
 
-	retriever, err := retrieval.NewRetriever(cc.DB, company.ID)
-	if err != nil {
-		cc.Logger.Errorf("Error creating retriever: %w", err)
+	if _, err := models.CreateUserMessage(cc.DB, user.ID, company.ID, userMessage.Text); err != nil {
+		cc.Logger.Errorf("Error saving user message: %w", err)
 		RespondInternalErr(c)
 		return
 	}
+	cc.Logger.Infow(fmt.Sprintf("Answering user message: %v", userMessage.Text), "userID", user.ID, "companyID", company.ID)
 
 	documents, err := models.GetCompanyDocumentsInverseChronological(cc.DB, company.ID, 0, 10)
 	if err != nil {
@@ -83,7 +80,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 	if len(documents) == 0 {
 		var earlyResponse = "Sorry, I'm afraid no recent documents are available for this company."
 		cc.Logger.Infow(fmt.Sprintf("Early response \"%v\" for user messsage", earlyResponse), "userID", user.ID, "companyID", company.ID)
-		aiMessage, err := SaveMessages(cc.DB, user.ID, company.ID, userMessage.Text, earlyResponse, []models.Source{})
+		aiMessage, err := models.CreateAIMessage(cc.DB, user.ID, company.ID, earlyResponse, []models.Source{})
 		if err != nil {
 			cc.Logger.Errorf("Error saving messages: %w", err)
 			RespondInternalErr(c)
@@ -94,14 +91,18 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		return
 	}
 
-	conversation, err := cc.Generator.CondenseConversation(c.Request.Context(), user, company, messageHistory, userMessage.Text)
-	if err != nil {
-		cc.Logger.Errorf("Error condensing conversation: %w", err)
-		RespondInternalErr(c)
+	var conversation string = mergeMessages(user, messageHistory)
+	if len(messageHistory) != 0 {
+		conversation, err = cc.Generator.CondenseConversation(c.Request.Context(), user, company, conversation, userMessage.Text)
+		if err != nil {
+			cc.Logger.Errorf("Error condensing conversation: %w", err)
+			RespondInternalErr(c)
+		}
+		cc.Logger.Infow(fmt.Sprintf("Condensed the conversation to:\n%v", conversation), "userID", user.ID, "companyID", company.ID)
 	}
-	cc.Logger.Infow(fmt.Sprintf("Condensed the conversation to:\n%v", conversation), "userID", user.ID, "companyID", company.ID)
 
-	earlyResponse, documentID, query, err := cc.Generator.CreateRetrieval(c.Request.Context(), company, documents, conversation, userMessage.Text)
+	documentIDs, documentList := makeDocumentList(company, documents)
+	earlyResponse, documentID, query, err := cc.Generator.CreateRetrieval(c.Request.Context(), company, documentIDs, documentList, conversation, userMessage.Text)
 	if err != nil {
 		cc.Logger.Errorf("Error creating retrieval: %w", err)
 		RespondInternalErr(c)
@@ -109,7 +110,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 	}
 	if earlyResponse != nil {
 		cc.Logger.Infow(fmt.Sprintf("Early response \"%v\" for user messsage", *earlyResponse), "userID", user.ID, "companyID", company.ID)
-		aiMessage, err := SaveMessages(cc.DB, user.ID, company.ID, userMessage.Text, *earlyResponse, []models.Source{})
+		aiMessage, err := models.CreateAIMessage(cc.DB, user.ID, company.ID, *earlyResponse, []models.Source{})
 		if err != nil {
 			cc.Logger.Errorf("Error saving messages: %w", err)
 			RespondInternalErr(c)
@@ -129,6 +130,12 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 	}
 
 	var sources = make([]models.Source, 0, len(documents))
+	retriever, err := retrieval.NewRetriever(cc.DB, company.ID)
+	if err != nil {
+		cc.Logger.Errorf("Error creating retriever: %w", err)
+		RespondInternalErr(c)
+		return
+	}
 	chunks, err := retriever.GetSemanticChunks(c.Request.Context(), company.ID, documentID, query)
 	if err != nil {
 		cc.Logger.Errorf("Error getting semantic chunks for namespace %v document %v: %w", company.ID, documentID, err)
@@ -143,7 +150,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		OriginURL: document.OriginURL,
 	})
 
-	response, err := cc.Generator.Continue(c.Request.Context(), company, conversation, userMessage.Text, document, chunks)
+	response, err := cc.Generator.Continue(c.Request.Context(), company, documentList, conversation, userMessage.Text, document, chunks)
 	if err != nil {
 		cc.Logger.Errorf("Error generating AI response: %w", err)
 		RespondInternalErr(c)
@@ -151,7 +158,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 	}
 	cc.Logger.Infow(fmt.Sprintf("Generated response: %v", response), "userID", user.ID, "companyID", company.ID)
 
-	aiMessage, err := SaveMessages(cc.DB, user.ID, company.ID, userMessage.Text, response, sources)
+	aiMessage, err := models.CreateAIMessage(cc.DB, user.ID, company.ID, response, sources)
 	if err != nil {
 		cc.Logger.Errorf("Error saving messages: %w", err)
 		RespondInternalErr(c)
@@ -163,27 +170,6 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 	cc.Amplitude.TrackEvent(user.FirebaseSubjectID, "user_sent_message", map[string]interface{}{
 		"company_ticker": company.Ticker,
 	})
-}
-
-func SaveMessages(db *gorm.DB, userID, companyID uint, userMessage, aiMessage string, sources []models.Source) (*models.Message, error) {
-	var createdAIMessage *models.Message
-	if err := db.Transaction(func(tx *gorm.DB) error {
-		_, err := models.CreateUserMessage(tx, userID, companyID, userMessage)
-		if err != nil {
-			return err
-		}
-
-		createdAIMessage, err = models.CreateAIMessage(tx, userID, companyID, aiMessage, sources)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-
-	return createdAIMessage, nil
 }
 
 func (cc ConversationsController) GetConversation(c *gin.Context) {
@@ -224,4 +210,26 @@ func reverseMessageArray(a []models.Message) (b []models.Message) {
 	}
 
 	return
+}
+
+// Format conversation history as a single string.
+func mergeMessages(user *models.User, messages []models.Message) (conversation string) {
+	for _, message := range messages {
+		if message.Author == models.UserAuthor {
+			conversation += fmt.Sprintf("%v: %v\n", user.FullName, message.Text)
+		} else if message.Author == models.AIAuthor {
+			conversation += fmt.Sprintf("COFIN: %v\n", message.Text)
+		}
+	}
+
+	return conversation
+}
+
+func makeDocumentList(company *models.Company, documents []models.Document) (documentIDs []uint, documentList string) {
+	for _, document := range documents {
+		documentIDs = append(documentIDs, document.ID)
+		documentList += fmt.Sprintf("%v: $%v %v %v\n", document.ID, company.Ticker, document.FiledAt.Format("2006-01-02"), document.Kind)
+	}
+
+	return documentIDs, documentList
 }

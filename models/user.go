@@ -98,7 +98,7 @@ func CreateUser(db *gorm.DB, email, fullName, stripeCustomerID, firebaseSubjectI
 func setMessageAllowance(db *gorm.DB, user *User) error {
 	if user.IsSubscribed {
 		user.RemainingMessageAllowance = -1
-	} else if messageCount, err := CountUserMessages(db, user.ID); err != nil {
+	} else if messageCount, err := CountUserGenerations(db, user.ID); err != nil {
 		return err
 	} else {
 		user.RemainingMessageAllowance = MAX_MESSAGES_UNPAID - messageCount

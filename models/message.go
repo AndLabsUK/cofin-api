@@ -102,9 +102,9 @@ func GetMessagesForCompanyChronological(db *gorm.DB, userID, companyID uint, off
 	return messages, nil
 }
 
-func CountUserMessages(db *gorm.DB, userID uint) (int64, error) {
+func CountUserGenerations(db *gorm.DB, userID uint) (int64, error) {
 	var count int64
-	if err := db.Model(&Message{}).Where("user_id = ? AND author = ?", userID, UserAuthor).Count(&count).Error; err != nil {
+	if err := db.Model(&Message{}).Where("user_id = ? AND author = ?", userID, AIAuthor).Count(&count).Error; err != nil {
 		return 0, err
 	}
 
