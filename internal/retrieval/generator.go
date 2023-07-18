@@ -103,7 +103,7 @@ func (g *Generator) CreateRetrieval(ctx context.Context, user *models.User, comp
 		{"role": "user", "content": "Here's the list of documents you have access to in <DocumentID>: <Description> format:\n%v"},
 		{"role": "user", "content": "Here is the conversation history:\n%v"},
 		{"role": "user", "content": "%v: %v"},
-		{"role": "user", "content": "Do one of the following.\n1. Generate a reponse to %v. Do not prepend your answer with \"User:\" or \"COFIN:\". Just return the exact text you would've given the user.\n2. If you need more financial data to inform your answer, choose a document with retrieve_relevant_paragraphs and submit a query to retrieve information from the document. Phrase the query so that it matches text in the document that might contain the answer to the user's question. Remember, you are working with 10-Ks and 10-Qs.\n3: If you need more information from the user, say so and give them the list of documents you have access to and explicitly ask them which one they'd like to use."}
+		{"role": "user", "content": "Do one of the following.\n1. Generate a reponse to %v. Do not repeat their last message. Do not prepend your answer with \"User:\" or \"COFIN:\". Just address %v directly.\n2. If you need more financial data to inform your answer, choose a document with retrieve_relevant_paragraphs and submit a query to retrieve information from the document. Phrase the query so that it matches text in the document that might contain the answer to the user's question. Remember, you are working with 10-Ks and 10-Qs.\n3: If you need more information from the user, say so and give them the list of documents you have access to and explicitly ask them which one they'd like to use."}
 	   ],
 	"temperature": %v,
 	"functions": [
@@ -125,7 +125,7 @@ func (g *Generator) CreateRetrieval(ctx context.Context, user *models.User, comp
 	],
 	"function_call": "auto"
    }
-	`, g.model, time.Now().Format("2006-01-02"), company.Name, company.Ticker, documentListFormatted, conversationFormatted, userNameFormatted, lastMessageFormatted, userNameFormatted, g.temperature, documentIDsFormatted)
+	`, g.model, time.Now().Format("2006-01-02"), company.Name, company.Ticker, documentListFormatted, conversationFormatted, userNameFormatted, lastMessageFormatted, userNameFormatted, userNameFormatted, g.temperature, documentIDsFormatted)
 
 	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader([]byte(jsonStr)))
 	if err != nil {
