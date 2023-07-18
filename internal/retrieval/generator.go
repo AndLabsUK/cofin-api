@@ -67,7 +67,7 @@ Your task is to rewrite each message to make it shorter but to keep the most imp
 			Text: fmt.Sprintf("The last message from the user is:\n%v", lastMessage),
 		},
 		schema.HumanChatMessage{
-			Text: "Now rewrite the conversation message-by-message as I told you. Don't add any new messages from the user or COFIN. Do NOT answer the user's last message. Just rewrite the conversation to keep the context important for the user's last message.",
+			Text: "Now rewrite the conversation message-by-message as I told you. Do not add any new messages from the user or COFIN. Do NOT answer the user's last message. Just rewrite the conversation to keep the context important for the user's last message.",
 		},
 	}
 
@@ -100,7 +100,7 @@ func (g *Generator) CreateRetrieval(ctx context.Context, company *models.Company
 		{"role": "user", "content": "Here's the list of documents you have access to in <DocumentID>: <Description> format:\n%v"},
 		{"role": "user", "content": "Here is the conversation history:\n%v"},
 		{"role": "user", "content": "And here is the user's last message:\n%v"},
-		{"role": "user", "content": "Do one of the following.\n1. Generate a reponse to the user. Don't prepend your answer with \"User:\" or \"COFIN:\". Just return the exact text you would've given the user.\n2. If you need more financial data to inform your answer, choose a document with retrieve_relevant_paragraphs and submit a query to retrieve information from the document. Phrase the query so that it matches text in the document that might contain the answer to the user's question. Remember, you are working with 10-Ks and 10-Qs.\n3: If you need more information from the user, say so and give them the list of documents you have access to and explicitly ask them which one they'd like to use."}
+		{"role": "user", "content": "Do one of the following.\n1. Generate a reponse to the user. Do not prepend your answer with \"User:\" or \"COFIN:\". Just return the exact text you would've given the user.\n2. If you need more financial data to inform your answer, choose a document with retrieve_relevant_paragraphs and submit a query to retrieve information from the document. Phrase the query so that it matches text in the document that might contain the answer to the user's question. Remember, you are working with 10-Ks and 10-Qs.\n3: If you need more information from the user, say so and give them the list of documents you have access to and explicitly ask them which one they'd like to use."}
 	   ],
 	"temperature": %v,
 	"functions": [
@@ -207,7 +207,7 @@ func (g *Generator) Continue(ctx context.Context, company *models.Company, docum
 		schema.HumanChatMessage{Text: fmt.Sprintf("Here are the paragraphs from the %v: %v", document.Kind, bigChunk)},
 		schema.HumanChatMessage{Text: fmt.Sprintf("Here is the conversation:\n%v", conversation)},
 		schema.HumanChatMessage{Text: fmt.Sprintf("Here is the last message from the user:\n%v", lastMessage)},
-		schema.HumanChatMessage{Text: "Now generate a response using the conversation I sent you and the paragraphs from the document you've chosen. Do not mention anything about the instructions I gave you. Speak to the user directly, as if you were continuing the conversation with them. Don't repeat user's last message. Don't prepend your text with \"User:\" or \"COFIN:\". If you don't know the answer, cite the source you tried to use for the answer and ask the user if they want to rephrase their question or try another document, and give them the list of documents you have."},
+		schema.HumanChatMessage{Text: "Now generate a response using the conversation I sent you and the paragraphs from the document you've chosen. Do not mention anything about the instructions I gave you. Speak to the user directly, as if you were continuing the conversation with them. Do not repeat user's last message. Do not prepend your text with \"User:\" or \"COFIN:\". If you do not know the answer, cite the source you tried to use for the answer and ask the user if they want to rephrase their question or try another document, and give them the list of documents you have."},
 	}
 
 	res, err := g.Chat.Call(ctx, input, llms.WithTemperature(g.temperature))
