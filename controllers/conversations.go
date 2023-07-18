@@ -102,7 +102,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 	}
 
 	documentIDs, documentList := makeDocumentList(company, documents)
-	earlyResponse, documentID, query, err := cc.Generator.CreateRetrieval(c.Request.Context(), company, documentIDs, documentList, conversation, userMessage.Text)
+	earlyResponse, documentID, query, err := cc.Generator.CreateRetrieval(c.Request.Context(), user, company, documentIDs, documentList, conversation, userMessage.Text)
 	if err != nil {
 		cc.Logger.Errorf("Error creating retrieval: %w", err)
 		RespondInternalErr(c)
@@ -150,7 +150,7 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		OriginURL: document.OriginURL,
 	})
 
-	response, err := cc.Generator.Continue(c.Request.Context(), company, documentList, conversation, userMessage.Text, document, chunks)
+	response, err := cc.Generator.Continue(c.Request.Context(), user, company, documentList, conversation, userMessage.Text, document, chunks)
 	if err != nil {
 		cc.Logger.Errorf("Error generating AI response: %w", err)
 		RespondInternalErr(c)
