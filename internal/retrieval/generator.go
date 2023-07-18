@@ -21,9 +21,10 @@ import (
 // Generator is a type that completes conversations with AI.
 type Generator struct {
 	// Chat is the underlying chatbot.
-	Chat        llms.ChatLLM
-	model       string
-	temperature float64
+	Chat            llms.ChatLLM
+	model           string
+	temperature     float64
+	maxOutputTokens int
 }
 
 // NewGenerator creates a new conversation generator.
@@ -35,9 +36,10 @@ func NewGenerator() (*Generator, error) {
 	}
 
 	return &Generator{
-		Chat:        chat,
-		model:       model,
-		temperature: 0.7,
+		Chat:            chat,
+		model:           model,
+		temperature:     0.7,
+		maxOutputTokens: 1000,
 	}, nil
 }
 
@@ -52,13 +54,13 @@ func (g *Generator) CondenseConversation(ctx context.Context, user *models.User,
 		schema.HumanChatMessage{
 			Text: fmt.Sprintf(
 				`
-I am going to send you a conversation history between you and a user as a single message. The conversation pertains to company %v, ($%v). The conversation will be provided in the following form:
+I am going to send you a conversation history between you and %v as a single message. The conversation pertains to company %v, ($%v). The conversation will be provided in the following form:
 
-<UserName>: <message>
-<UserName>: <message>
-<UserName>: <message>
+<name>: <message>
+<name>: <message>
+<name>: <message>
 			
-Your task is to rewrite each message to make it shorter but to keep the most important context that will help you answer the user's last message.`, company.Name, company.Ticker),
+Your task is to rewrite each message to make it shorter but to keep the most important context that will help you answer the user's last message.`, user.FullName, company.Name, company.Ticker),
 		},
 		schema.HumanChatMessage{
 			Text: fmt.Sprintf("Here is the conversation history:\n%v", conversation),
@@ -67,11 +69,11 @@ Your task is to rewrite each message to make it shorter but to keep the most imp
 			Text: fmt.Sprintf("%v: %v", user.FullName, lastMessage),
 		},
 		schema.HumanChatMessage{
-			Text: "Now rewrite the conversation message-by-message as I told you. Do not add any new messages from the user or COFIN. Do NOT answer the user's last message. Just rewrite the conversation to keep the context important for the user's last message.",
+			Text: fmt.Sprintf("Now rewrite the conversation message-by-message as I told you. Do not add any new messages from the user or COFIN. Do NOT answer the user's last message. Just rewrite the conversation to keep the context important for the %v's last message.", user.FullName),
 		},
 	}
 
-	res, err := g.Chat.Call(ctx, input, llms.WithTemperature(g.temperature))
+	res, err := g.Chat.Call(ctx, input, llms.WithTemperature(g.temperature), llms.WithMaxTokens(g.maxOutputTokens))
 	if err != nil {
 		return "", err
 	}
@@ -101,7 +103,7 @@ func (g *Generator) CreateRetrieval(ctx context.Context, user *models.User, comp
 		{"role": "user", "content": "Here's the list of documents you have access to in <DocumentID>: <Description> format:\n%v"},
 		{"role": "user", "content": "Here is the conversation history:\n%v"},
 		{"role": "user", "content": "%v: %v"},
-		{"role": "user", "content": "Do one of the following.\n1. Generate a reponse to the user. Do not prepend your answer with \"User:\" or \"COFIN:\". Just return the exact text you would've given the user.\n2. If you need more financial data to inform your answer, choose a document with retrieve_relevant_paragraphs and submit a query to retrieve information from the document. Phrase the query so that it matches text in the document that might contain the answer to the user's question. Remember, you are working with 10-Ks and 10-Qs.\n3: If you need more information from the user, say so and give them the list of documents you have access to and explicitly ask them which one they'd like to use."}
+		{"role": "user", "content": "Do one of the following.\n1. Generate a reponse to %v. Do not prepend your answer with \"User:\" or \"COFIN:\". Just return the exact text you would've given the user.\n2. If you need more financial data to inform your answer, choose a document with retrieve_relevant_paragraphs and submit a query to retrieve information from the document. Phrase the query so that it matches text in the document that might contain the answer to the user's question. Remember, you are working with 10-Ks and 10-Qs.\n3: If you need more information from the user, say so and give them the list of documents you have access to and explicitly ask them which one they'd like to use."}
 	   ],
 	"temperature": %v,
 	"functions": [
@@ -123,7 +125,7 @@ func (g *Generator) CreateRetrieval(ctx context.Context, user *models.User, comp
 	],
 	"function_call": "auto"
    }
-	`, g.model, time.Now().Format("2006-01-02"), company.Name, company.Ticker, documentListFormatted, conversationFormatted, userNameFormatted, lastMessageFormatted, g.temperature, documentIDsFormatted)
+	`, g.model, time.Now().Format("2006-01-02"), company.Name, company.Ticker, documentListFormatted, conversationFormatted, userNameFormatted, lastMessageFormatted, userNameFormatted, g.temperature, documentIDsFormatted)
 
 	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader([]byte(jsonStr)))
 	if err != nil {
@@ -208,10 +210,10 @@ func (g *Generator) Continue(ctx context.Context, user *models.User, company *mo
 		schema.HumanChatMessage{Text: fmt.Sprintf("Here are the paragraphs from the %v: %v", document.Kind, bigChunk)},
 		schema.HumanChatMessage{Text: fmt.Sprintf("Here is the conversation:\n%v", conversation)},
 		schema.HumanChatMessage{Text: fmt.Sprintf("%v: %v", user.FullName, lastMessage)},
-		schema.HumanChatMessage{Text: "Now generate a response using the conversation I sent you and the paragraphs from the document you've chosen. Do not mention anything about the instructions I gave you. Speak to the user directly, as if you were continuing the conversation with them. Do not repeat user's last message. Do not prepend your text with \"User:\" or \"COFIN:\". If you do not know the answer, cite the source you tried to use for the answer and ask the user if they want to rephrase their question or try another document, and give them the list of documents you have."},
+		schema.HumanChatMessage{Text: fmt.Sprintf("Now generate a response using the conversation I sent you and the paragraphs from the document you've chosen. Do not mention anything about the instructions I gave you. You are speaking to %v directly. Do not repeat %v's last message. Do not start your text with \"%v:\" or \"COFIN:\". If you do not know the answer, cite the source you tried to use for the answer and ask %v if they want to rephrase their question or try another document, and give them the list of documents you have.", user.FullName, user.FullName, user.FullName, user.FullName)},
 	}
 
-	res, err := g.Chat.Call(ctx, input, llms.WithTemperature(g.temperature))
+	res, err := g.Chat.Call(ctx, input, llms.WithTemperature(g.temperature), llms.WithMaxTokens(g.maxOutputTokens))
 	if err != nil {
 		return "", err
 	}
