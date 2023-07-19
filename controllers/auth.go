@@ -86,11 +86,6 @@ func (ac AuthController) SignIn(c *gin.Context) {
 	var user *models.User
 	var accessToken *models.AccessToken
 	if err := ac.DB.Transaction(func(tx *gorm.DB) (err error) {
-		stripeCustomerID, err := ac.StripeAPI.CreateCustomer(email, fullName)
-		if err != nil {
-			return err
-		}
-
 		user, err = models.GetUserByFirebaseSubjectID(tx, firebaseSubjectID)
 		if err != nil {
 			return err
@@ -106,6 +101,11 @@ func (ac AuthController) SignIn(c *gin.Context) {
 		}
 
 		ac.Logger.Info("Creating user")
+		stripeCustomerID, err := ac.StripeAPI.CreateCustomer(email, fullName)
+		if err != nil {
+			return err
+		}
+
 		user, err = models.CreateUser(tx, email, fullName, stripeCustomerID, firebaseSubjectID)
 		if err != nil {
 			return err
