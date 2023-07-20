@@ -6,7 +6,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const MAX_MESSAGES_UNPAID int64 = 5
+const MAX_MESSAGES_UNPAID int64 = 10
 
 type User struct {
 	Generic
