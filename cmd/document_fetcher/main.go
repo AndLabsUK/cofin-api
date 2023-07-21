@@ -118,6 +118,11 @@ func fetchDocuments(db *gorm.DB, logger *zap.SugaredLogger, embedder embeddings.
 				continue
 			}
 
+			if strings.ToUpper(listing.Exchange) != strings.ToUpper(string(exchange)) {
+				logger.Infof("Skipping company on the wrong exchange: $%v (%v)", listing.Ticker, listing.Exchange)
+				continue
+			}
+
 			allListings = append(allListings, listing)
 		}
 	}
