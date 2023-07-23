@@ -101,7 +101,11 @@ func setMessageAllowance(db *gorm.DB, user *User) error {
 	} else if messageCount, err := CountUserGenerations(db, user.ID); err != nil {
 		return err
 	} else {
-		user.RemainingMessageAllowance = MAX_MESSAGES_UNPAID - messageCount
+		if remaining := MAX_MESSAGES_UNPAID - messageCount; remaining > 0 {
+			user.RemainingMessageAllowance = remaining
+		} else {
+			user.RemainingMessageAllowance = 0
+		}
 	}
 
 	return nil
