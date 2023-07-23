@@ -28,5 +28,9 @@ func CreateAccessToken(db *gorm.DB, userID uint, token string) (*AccessToken, er
 		return nil, err
 	}
 
+	if err := setMessageAllowance(db, &accessToken.User); err != nil {
+		return nil, err
+	}
+
 	return accessToken, nil
 }

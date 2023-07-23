@@ -75,7 +75,7 @@ func GetUserByFirebaseSubjectID(db *gorm.DB, firebaseSubjectID string) (*User, e
 }
 
 func CreateUser(db *gorm.DB, email, fullName, stripeCustomerID, firebaseSubjectID string) (*User, error) {
-	user := &User{
+	var user = User{
 		Email:             email,
 		FullName:          fullName,
 		FirebaseSubjectID: firebaseSubjectID,
@@ -83,15 +83,15 @@ func CreateUser(db *gorm.DB, email, fullName, stripeCustomerID, firebaseSubjectI
 		IsSubscribed:      false,
 	}
 
-	if err := db.Create(user).Error; err != nil {
+	if err := db.Create(&user).Error; err != nil {
 		return nil, err
 	}
 
-	if err := setMessageAllowance(db, user); err != nil {
+	if err := setMessageAllowance(db, &user); err != nil {
 		return nil, err
 	}
 
-	return user, nil
+	return &user, nil
 }
 
 // Set remaining message allowance counter on the user object.
