@@ -86,6 +86,7 @@ func (s StripeAPI) CreateCheckout(user *models.User, productID string) (*string,
 		ConsentCollection: &stripe.CheckoutSessionConsentCollectionParams{
 			TermsOfService: stripe.String("required"),
 		},
+		AllowPromotionCodes: stripe.Bool(true),
 	}
 
 	stripeCheckoutSession, err := checkoutSession.New(params)
