@@ -2,6 +2,7 @@ package real_stonks
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -41,7 +42,7 @@ func (rs RealStonks) GetMarketData(ticker string) (*TickerInformation, error) {
 	var d *dto
 	err = json.Unmarshal(body, &d)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%v: %w", body, err)
 	}
 
 	ti := &TickerInformation{
