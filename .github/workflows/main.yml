@@ -8,6 +8,10 @@ on:
 permissions:
   packages: write
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,7 +27,7 @@ jobs:
       - uses: docker/metadata-action@v4
         id: meta
         with:
-          images: ghcr.io/cofin-api
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
       - uses: docker/build-push-action@v4
         with:
