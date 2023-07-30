@@ -36,3 +36,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - uses: azure/deploy-webapp@v1
+        with:
+          app-name: cofin-api-staging
+          slot-name: production
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tags }}
