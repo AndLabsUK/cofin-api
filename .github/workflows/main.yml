@@ -3,7 +3,7 @@ name: Build & deploy
 on:
   push:
     branches:
-      - '**'
+      - main
 
 permissions:
   contents: read
@@ -16,6 +16,7 @@ env:
 
 jobs:
   build:
+    name: Build & deploy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
