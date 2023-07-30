@@ -37,7 +37,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      - uses: azure/deploy-webapp@v1
+      - uses: azure/webapps-deploy@v2
         with:
           app-name: cofin-api-staging
           slot-name: production
