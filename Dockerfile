@@ -1,6 +1,6 @@
 FROM alpine:latest
 
-RUN apk add gcompat
+RUN apk add build-base gcompat
 
 WORKDIR /app
 
