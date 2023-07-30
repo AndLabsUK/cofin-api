@@ -50,4 +50,4 @@ jobs:
         with:
           app-name: cofin-api-staging
           slot-name: production
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tags }}
+          images: ${{ steps.meta.outputs.tags }}
