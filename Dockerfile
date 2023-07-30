@@ -1,4 +1,4 @@
-FROM golang:1.20-alpine
+FROM alpine:latest
 
 WORKDIR /app
 
@@ -6,4 +6,6 @@ COPY ./bin ./bin
 
 COPY ./crontab /etc/crontabs/root
 
-CMD crond && ./bin/api-amd64-linux
+EXPOSE 80
+
+CMD crond && /app/bin/api-amd64-linux
