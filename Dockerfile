@@ -1,6 +1,6 @@
 FROM alpine:latest
 
-RUN apk add libc6-compat
+RUN apk add gcompat
 
 WORKDIR /app
 
