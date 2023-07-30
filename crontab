@@ -1,2 +1,2 @@
-0 8 * * * /app/bin/market_fetcher > /proc/1/fd/1
-0 20 * * * /app/bin/document_fetcher > /proc/1/fd/1
+0 8 * * * /app/bin/market_fetcher-amd64-linux > /proc/1/fd/1
+0 20 * * * /app/bin/document_fetcher-amd64-linux > /proc/1/fd/1

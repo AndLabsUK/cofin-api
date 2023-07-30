@@ -2,13 +2,8 @@ FROM golang:1.20-alpine
 
 WORKDIR /app
 
-COPY . .
+COPY ./bin ./bin
 
 COPY ./crontab /etc/crontabs/root
 
-RUN apk add make
-
-RUN make all
-
-CMD crond && ./bin/api
-
+CMD crond && ./bin/api-amd64-linux

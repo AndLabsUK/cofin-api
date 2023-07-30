@@ -13,7 +13,6 @@ import (
 var db *gorm.DB
 
 func InitDB() (*gorm.DB, error) {
-
 	databaseUrl := os.Getenv("DATABASE_URL")
 	credentials, err := url.Parse(databaseUrl)
 

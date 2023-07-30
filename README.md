@@ -1,6 +1,6 @@
-`make all`
+`make macos`
 
-`./bin/api`
+`./bin/api-amd64-darwin`
 
 # API
 
