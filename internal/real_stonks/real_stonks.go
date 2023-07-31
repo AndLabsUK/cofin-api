@@ -42,7 +42,7 @@ func (rs RealStonks) GetMarketData(ticker string) (*TickerInformation, error) {
 	var d *dto
 	err = json.Unmarshal(body, &d)
 	if err != nil {
-		return nil, fmt.Errorf("%v: %w", body, err)
+		return nil, fmt.Errorf("%v: %w", string(body), err)
 	}
 
 	ti := &TickerInformation{
