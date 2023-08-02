@@ -41,6 +41,16 @@ func GetCompanyByID(db *gorm.DB, companyID uint) (*Company, error) {
 	return &company, nil
 }
 
+func GetCompanies(db *gorm.DB) ([]Company, error) {
+	var companies []Company
+	err := db.Find(&companies).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return companies, nil
+}
+
 // Get company by ticker.
 func GetCompanyByTicker(db *gorm.DB, ticker string) (*Company, error) {
 	ticker = strings.ToUpper(ticker)
