@@ -87,9 +87,9 @@ func (s StripeAPI) CreateCheckout(user *models.User, productID string) (*string,
 			TermsOfService: stripe.String("required"),
 		},
 		AllowPromotionCodes: stripe.Bool(true),
-		SubscriptionData: &stripe.CheckoutSessionSubscriptionDataParams{
-			TrialPeriodDays: stripe.Int64(14),
-		},
+		// SubscriptionData: &stripe.CheckoutSessionSubscriptionDataParams{
+		// 	TrialPeriodDays: stripe.Int64(14),
+		// },
 	}
 
 	stripeCheckoutSession, err := checkoutSession.New(params)
