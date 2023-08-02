@@ -32,7 +32,7 @@ func NewRetriever(db *gorm.DB, companyID uint) (*Retriever, error) {
 		db:       db,
 		embedder: embedder,
 		store:    store,
-		topK:     10,
+		topK:     3,
 	}, nil
 }
 
