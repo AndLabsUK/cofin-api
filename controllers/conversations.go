@@ -68,6 +68,11 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 		RespondInternalErr(c)
 		return
 	}
+
+	cc.Amplitude.TrackEvent(user.FirebaseSubjectID, "user_sent_message", map[string]interface{}{
+		"company_ticker": company.Ticker,
+	})
+
 	cc.Logger.Infow(fmt.Sprintf("Answering user message: %v", userMessage.Text), "userID", user.ID, "companyID", company.ID)
 
 	documents, err := models.GetCompanyDocumentsInverseChronological(cc.DB, company.ID, 0, 10)
@@ -166,10 +171,6 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 	}
 
 	RespondOK(c, aiMessage)
-
-	cc.Amplitude.TrackEvent(user.FirebaseSubjectID, "user_sent_message", map[string]interface{}{
-		"company_ticker": company.Ticker,
-	})
 }
 
 func (cc ConversationsController) GetConversation(c *gin.Context) {
