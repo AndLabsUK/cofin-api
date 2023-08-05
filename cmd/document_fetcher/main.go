@@ -118,7 +118,7 @@ func fetchDocuments(db *gorm.DB, logger *zap.SugaredLogger, embedder embeddings.
 				continue
 			}
 
-			if strings.ToUpper(listing.Exchange) != strings.ToUpper(string(exchange)) {
+			if strings.EqualFold(listing.Exchange, string(exchange)) {
 				logger.Infof("Skipping company on the wrong exchange: $%v (%v)", listing.Ticker, listing.Exchange)
 				continue
 			}
@@ -131,7 +131,7 @@ func fetchDocuments(db *gorm.DB, logger *zap.SugaredLogger, embedder embeddings.
 	if maxCompanies := os.Getenv("MAX_COMPANIES"); maxCompanies != "" {
 		limit, err := strconv.Atoi(maxCompanies)
 		if err != nil {
-			logger.Errorf("failed to parse MAX_COMPANIES: %w", err)
+			logger.Errorf("failed to parse MAX_COMPANIES: %v", err)
 			return
 		}
 
@@ -174,11 +174,12 @@ func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing sec_api.List
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("could not create company for %v (%v): %w\n", listing.Name, listing.Ticker, err)
+		return fmt.Errorf("could not create company for %v (%v): %w", listing.Name, listing.Ticker, err)
 	}
 
 	// Initialize the vector store.
-	store, err := retrieval.NewPinecone(context.Background(), embedder, company.ID)
+	ctx := context.Background()
+	store, err := retrieval.NewPinecone(ctx, embedder, company.ID)
 	if err != nil {
 		panic(err)
 	}
@@ -192,7 +193,7 @@ func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing sec_api.List
 
 	for _, filingKind := range []models.SourceKind{models.K10, models.Q10} {
 		logger.Infof("Processing filing kind: %v", filingKind)
-		if err := processFilingKind(db, logger, company, splitter, store, filingKind); err != nil {
+		if err := processFilingKind(ctx, db, logger, company, splitter, store, filingKind); err != nil {
 			logger.Errorw(fmt.Errorf("failed to process a filing kind for a company: %v", err).Error(), "companyID", company.ID, "filingKind", filingKind)
 			continue
 		}
@@ -220,11 +221,11 @@ func processListing(db *gorm.DB, logger *zap.SugaredLogger, listing sec_api.List
 
 // processFilingKind fetches filings of a particular kind for a company,
 // processes and stores them.
-func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.Company, splitter *retrieval.Splitter, store vectorstores.VectorStore, filingKind models.SourceKind) error {
+func processFilingKind(ctx context.Context, db *gorm.DB, logger *zap.SugaredLogger, company *models.Company, splitter *retrieval.Splitter, store vectorstores.VectorStore, filingKind models.SourceKind) error {
 	// Get the most recent document of the kind for the company.
 	document, err := models.GetCompanyDocumentsOfKindInverseChronological(db, company.ID, filingKind)
 	if err != nil {
-		return fmt.Errorf("failed to fetchDocuments most recent document for %v (%v): %w\n", company.Name, company.Ticker, err)
+		return fmt.Errorf("failed to fetchDocuments most recent document for %v (%v): %w", company.Name, company.Ticker, err)
 	}
 
 	// Query for the last one year of documents if we have no documents for the
@@ -239,7 +240,7 @@ func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.C
 	// Get filings since the last filed time.
 	filings, err := sec_api.GetFilingsSince(SEC_API_KEY, company.CIK, filingKind, lastFiledAt, MAX_FILINGS_PER_COMPANY_PER_BATCH)
 	if err != nil {
-		return fmt.Errorf("failed to fetchDocuments filings for %v (%v): %w\n", company.Name, company.Ticker, err)
+		return fmt.Errorf("failed to fetchDocuments filings for %v (%v): %w", company.Name, company.Ticker, err)
 	}
 
 	// Process filings. We only process up to MAX_FILINGS_PER_COMPANY_PER_BATCH
@@ -258,7 +259,7 @@ func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.C
 		// chunks in vector store, and updating the company. If any of these
 		// suboperations fail, we revert and abort.
 		if err := db.Transaction(func(tx *gorm.DB) error {
-			if err := processFiling(tx, logger, company, splitter, store, filingKind, filing); err != nil {
+			if err := processFiling(ctx, tx, logger, company, splitter, store, filingKind, filing); err != nil {
 				return fmt.Errorf("failed to process a filing with accession number %v: %v", filing.AccessionNo, err.Error())
 			}
 
@@ -268,7 +269,7 @@ func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.C
 			logger.Infof("Updating company %v (%v) last fetched time to %v", company.Name, company.Ticker, company.LastFetchedAt)
 			err = tx.Save(&company).Error
 			if err != nil {
-				return fmt.Errorf("failed to update company for %v (%v): %w\n", company.Name, company.Ticker, err)
+				return fmt.Errorf("failed to update company for %v (%v): %w", company.Name, company.Ticker, err)
 			}
 
 			return nil
@@ -281,7 +282,7 @@ func processFilingKind(db *gorm.DB, logger *zap.SugaredLogger, company *models.C
 }
 
 // processFiling processes a filing and stores it.
-func processFiling(db *gorm.DB, logger *zap.SugaredLogger, company *models.Company, splitter *retrieval.Splitter, store vectorstores.VectorStore, filingKind models.SourceKind, filing sec_api.Filing) error {
+func processFiling(ctx context.Context, db *gorm.DB, logger *zap.SugaredLogger, company *models.Company, splitter *retrieval.Splitter, store vectorstores.VectorStore, filingKind models.SourceKind, filing sec_api.Filing) error {
 	var sections []models.Section
 	if filingKind == models.Q10 {
 		sections = models.Q10Sections
@@ -295,7 +296,7 @@ func processFiling(db *gorm.DB, logger *zap.SugaredLogger, company *models.Compa
 		// Get the filing file from the SEC.
 		sectionContent, err := sec_api.ExtractSectionContent(SEC_API_KEY, originURL, section)
 		if err != nil {
-			return fmt.Errorf("failed to fetchDocuments filing file (accession number %v) for %v (%v): %w\n", filing.AccessionNo, company.Name, company.Ticker, err)
+			return fmt.Errorf("failed to fetchDocuments filing file (accession number %v) for %v (%v): %w", filing.AccessionNo, company.Name, company.Ticker, err)
 		}
 
 		if sectionContent != "" {
@@ -311,7 +312,7 @@ func processFiling(db *gorm.DB, logger *zap.SugaredLogger, company *models.Compa
 	// Create the document.
 	filedAt, err := time.Parse(time.RFC3339, filing.FiledAt)
 	if err != nil {
-		return fmt.Errorf("failed to parse filing time (accession number %v) for %v (%v): %w\n", filing.AccessionNo, company.Name, company.Ticker, err)
+		return fmt.Errorf("failed to parse filing time (accession number %v) for %v (%v): %w", filing.AccessionNo, company.Name, company.Ticker, err)
 	}
 
 	// Wrap document creation and semantic indexing into a single transaction.
@@ -319,19 +320,19 @@ func processFiling(db *gorm.DB, logger *zap.SugaredLogger, company *models.Compa
 		logger.Infof("Creating document (accession number %v) for %v (%v) filed at %v", filing.AccessionNo, company.Name, company.Ticker, filedAt)
 		document, err := models.CreateDocument(tx, company, filedAt, filingKind, originURL, rawContent)
 		if err != nil {
-			return fmt.Errorf("failed to create document (accession number %v) for %v (%v): %w\n", filing.AccessionNo, company.Name, company.Ticker, err)
+			return fmt.Errorf("failed to create document (accession number %v) for %v (%v): %w", filing.AccessionNo, company.Name, company.Ticker, err)
 		}
 
 		text := documentloaders.NewText(strings.NewReader(rawContent))
-		chunks, err := text.LoadAndSplit(context.Background(), splitter)
+		chunks, err := text.LoadAndSplit(ctx, splitter)
 		if err != nil {
-			return fmt.Errorf("failed to split document (accession number %v) for %v (%v): %w\n", filing.AccessionNo, company.Name, company.Ticker, err)
+			return fmt.Errorf("failed to split document (accession number %v) for %v (%v): %w", filing.AccessionNo, company.Name, company.Ticker, err)
 		}
 
 		// Store chunks in the vector store.
-		err = retrieval.StoreChunks(store, document.ID, chunks)
+		err = retrieval.StoreChunks(ctx, tx, store, document.ID, chunks)
 		if err != nil {
-			return fmt.Errorf("failed to store chunks (accession number %v) for %v (%v): %w\n", filing.AccessionNo, company.Name, company.Ticker, err)
+			return fmt.Errorf("failed to store chunks (accession number %v) for %v (%v): %w", filing.AccessionNo, company.Name, company.Ticker, err)
 		}
 
 		return nil

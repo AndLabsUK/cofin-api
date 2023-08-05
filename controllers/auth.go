@@ -38,7 +38,7 @@ func (ac AuthController) SignIn(c *gin.Context) {
 
 	token, err := jwt.Parse(payload.JWTToken, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-			return nil, fmt.Errorf("Unexpected JWT signing method: %v", token.Header["alg"])
+			return nil, fmt.Errorf("unexpected JWT signing method: %v", token.Header["alg"])
 		}
 
 		kid := token.Header["kid"].(string)

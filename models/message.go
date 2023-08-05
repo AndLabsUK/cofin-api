@@ -99,7 +99,7 @@ func GetMessagesForCompanyChronological(db *gorm.DB, userID, companyID uint, off
 		chronologicalMessages = append(chronologicalMessages, messages[i])
 	}
 
-	return messages, nil
+	return chronologicalMessages, nil
 }
 
 func CountUserGenerations(db *gorm.DB, userID uint) (int64, error) {

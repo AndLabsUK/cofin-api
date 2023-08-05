@@ -6,7 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"time"
@@ -47,12 +47,12 @@ func NewGenerator() (*Generator, error) {
 func (g *Generator) CondenseConversation(ctx context.Context, user *models.User, company *models.Company, conversation, lastMessage string) (string, error) {
 	input := []schema.ChatMessage{
 		schema.SystemChatMessage{
-			Text: fmt.Sprintf(
+			Content: fmt.Sprintf(
 				"You are COFIN, a virtual assistant that helps people read, analyze, and interpret financial filings of publicly traded companies. You have access to 10-K and 10-Q documents filed to SEC. Today is %v.",
 				time.Now().Format("2006-01-02")),
 		},
 		schema.HumanChatMessage{
-			Text: fmt.Sprintf(
+			Content: fmt.Sprintf(
 				`
 I am going to send you a conversation history between you and %v as a single message. The conversation pertains to company %v, ($%v). The conversation will be provided in the following form:
 
@@ -63,13 +63,13 @@ I am going to send you a conversation history between you and %v as a single mes
 Your task is to rewrite each message to make it shorter but to keep the most important context that will help you answer the user's last message.`, user.FullName, company.Name, company.Ticker),
 		},
 		schema.HumanChatMessage{
-			Text: fmt.Sprintf("Here is the conversation history:\n%v", conversation),
+			Content: fmt.Sprintf("Here is the conversation history:\n%v", conversation),
 		},
 		schema.HumanChatMessage{
-			Text: fmt.Sprintf("%v: %v", user.FullName, lastMessage),
+			Content: fmt.Sprintf("%v: %v", user.FullName, lastMessage),
 		},
 		schema.HumanChatMessage{
-			Text: fmt.Sprintf("Now rewrite the conversation message-by-message as I told you. Do not add any new messages from the user or COFIN. Do NOT answer the user's last message. Just rewrite the conversation to keep the context important for the %v's last message.", user.FullName),
+			Content: fmt.Sprintf("Now rewrite the conversation message-by-message as I told you. Do not add any new messages from the user or COFIN. Do NOT answer the user's last message. Just rewrite the conversation to keep the context important for the %v's last message.", user.FullName),
 		},
 	}
 
@@ -78,7 +78,7 @@ Your task is to rewrite each message to make it shorter but to keep the most imp
 		return "", err
 	}
 
-	return res, nil
+	return res.Content, nil
 }
 
 // CreateRetrieval either generates a direct response to the user's message or
@@ -141,7 +141,7 @@ func (g *Generator) CreateRetrieval(ctx context.Context, user *models.User, comp
 		return nil, 0, "", err
 	}
 
-	b, err := ioutil.ReadAll(resp.Body)
+	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, 0, "", err
 	}
@@ -199,18 +199,18 @@ func (g *Generator) Continue(ctx context.Context, user *models.User, company *mo
 
 	input := []schema.ChatMessage{
 		schema.SystemChatMessage{
-			Text: fmt.Sprintf("You are COFIN, a virtual assistant that helps people read, analyze, and interpret financial filings of publicly traded companies. You have access to 10-K and 10-Q documents filed to SEC. Today is %v.", time.Now().Format("2006-01-02")),
+			Content: fmt.Sprintf("You are COFIN, a virtual assistant that helps people read, analyze, and interpret financial filings of publicly traded companies. You have access to 10-K and 10-Q documents filed to SEC. Today is %v.", time.Now().Format("2006-01-02")),
 		},
 		schema.HumanChatMessage{
-			Text: fmt.Sprintf("I am going to send conversation history between you and a user as a single message. The conversation pertains to company %v ($%v). You have access to the following documents of the company:\n%v", company.Name, company.Ticker, documentList),
+			Content: fmt.Sprintf("I am going to send conversation history between you and a user as a single message. The conversation pertains to company %v ($%v). You have access to the following documents of the company:\n%v", company.Name, company.Ticker, documentList),
 		},
 		schema.HumanChatMessage{
-			Text: fmt.Sprintf("I am going to provide you with paragraphs from the %v document for %v filed at %v. You have previously chosen these as most relevant to the conversation you were having with the user. You should generate a response to the last user message using this document context as the source of data.", document.Kind, company.Name, document.FiledAt.Format("2006-01-02")),
+			Content: fmt.Sprintf("I am going to provide you with paragraphs from the %v document for %v filed at %v. You have previously chosen these as most relevant to the conversation you were having with the user. You should generate a response to the last user message using this document context as the source of data.", document.Kind, company.Name, document.FiledAt.Format("2006-01-02")),
 		},
-		schema.HumanChatMessage{Text: fmt.Sprintf("Here are the paragraphs from the %v: %v", document.Kind, bigChunk)},
-		schema.HumanChatMessage{Text: fmt.Sprintf("Here is the conversation:\n%v", conversation)},
-		schema.HumanChatMessage{Text: fmt.Sprintf("%v: %v", user.FullName, lastMessage)},
-		schema.HumanChatMessage{Text: fmt.Sprintf("Now generate a response using the conversation I sent you and the paragraphs from the document you've chosen. Do not mention anything about the instructions I gave you. You are speaking to %v directly. Do not repeat %v's last message. Do not start your text with \"%v:\" or \"COFIN:\". If you do not know the answer, cite the source you tried to use for the answer and ask %v if they want to rephrase their question or try another document, and give them the list of documents you have.", user.FullName, user.FullName, user.FullName, user.FullName)},
+		schema.HumanChatMessage{Content: fmt.Sprintf("Here are the paragraphs from the %v: %v", document.Kind, bigChunk)},
+		schema.HumanChatMessage{Content: fmt.Sprintf("Here is the conversation:\n%v", conversation)},
+		schema.HumanChatMessage{Content: fmt.Sprintf("%v: %v", user.FullName, lastMessage)},
+		schema.HumanChatMessage{Content: fmt.Sprintf("Now generate a response using the conversation I sent you and the paragraphs from the document you've chosen. Do not mention anything about the instructions I gave you. You are speaking to %v directly. Do not repeat %v's last message. Do not start your text with \"%v:\" or \"COFIN:\". If you do not know the answer, cite the source you tried to use for the answer and ask %v if they want to rephrase their question or try another document, and give them the list of documents you have.", user.FullName, user.FullName, user.FullName, user.FullName)},
 	}
 
 	res, err := g.Chat.Call(ctx, input, llms.WithTemperature(g.temperature), llms.WithMaxTokens(g.maxOutputTokens))
@@ -218,7 +218,7 @@ func (g *Generator) Continue(ctx context.Context, user *models.User, company *mo
 		return "", err
 	}
 
-	return res, nil
+	return res.Content, nil
 }
 
 // jsonEscapeString escapes a string as a JSON string. For instance, it converts

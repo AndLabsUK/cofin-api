@@ -8,13 +8,13 @@ import (
 )
 
 var (
-	ErrInvalidToken   = errors.New("Invalid token")
-	ErrInternalError  = errors.New("Internal error")
-	ErrUnknownCompany = errors.New("Unknown company")
-	ErrAccessDenied   = errors.New("Access denied")
-	ErrUnpaidUser     = errors.New("Unpaid user")
-	ErrUnknownUser    = errors.New("Unknown user")
-	ErrBadInput       = errors.New("Bad input")
+	ErrInvalidToken   = errors.New("invalid token")
+	ErrInternalError  = errors.New("internal error")
+	ErrUnknownCompany = errors.New("unknown company")
+	ErrAccessDenied   = errors.New("access denied")
+	ErrUnpaidUser     = errors.New("unpaid user")
+	ErrUnknownUser    = errors.New("unknown user")
+	ErrBadInput       = errors.New("bad input")
 )
 
 type apiResponse struct {

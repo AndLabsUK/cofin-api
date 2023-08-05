@@ -135,13 +135,13 @@ func (cc ConversationsController) PostConversation(c *gin.Context) {
 	}
 
 	var sources = make([]models.Source, 0, len(documents))
-	retriever, err := retrieval.NewRetriever(cc.DB, company.ID)
+	retriever, err := retrieval.NewRetriever(cc.DB, cc.Logger, company.ID)
 	if err != nil {
 		cc.Logger.Errorf("Error creating retriever: %w", err)
 		RespondInternalErr(c)
 		return
 	}
-	chunks, err := retriever.GetSemanticChunks(c.Request.Context(), company.ID, documentID, query)
+	chunks, err := retriever.GetSemanticChunks(c.Request.Context(), documentID, query)
 	if err != nil {
 		cc.Logger.Errorf("Error getting semantic chunks for namespace %v document %v: %w", company.ID, documentID, err)
 		RespondInternalErr(c)
